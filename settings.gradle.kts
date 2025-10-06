@@ -21,4 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Cardfolio"
 include(":app")
+include(":app")
  
