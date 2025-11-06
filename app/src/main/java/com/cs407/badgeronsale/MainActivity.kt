@@ -3,45 +3,55 @@ package com.cs407.badgeronsale
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.cs407.badgeronsale.ui.theme.BadgerOnSaleTheme
+import com.cs407.badgeronsale.ui.theme.BadgerOnSaleTheme  // use whatever your Theme.kt defines
+
+private enum class AuthScreen {
+    SIGN_IN,
+    CREATE_ACCOUNT
+}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
             BadgerOnSaleTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    var currentScreen by remember { mutableStateOf(AuthScreen.SIGN_IN) }
+
+                    when (currentScreen) {
+                        AuthScreen.SIGN_IN -> {
+                            SignInScreen(
+                                onCreateAccountClick = {
+                                    currentScreen = AuthScreen.CREATE_ACCOUNT
+                                },
+                                onSignInSuccess = {
+                                    // TODO: later navigate to Home screen
+                                }
+                            )
+                        }
+
+                        AuthScreen.CREATE_ACCOUNT -> {
+                            CreateAccountScreen(
+                                onBackToSignInClick = {
+                                    currentScreen = AuthScreen.SIGN_IN
+                                },
+                                onAccountCreated = {
+                                    // After creating account, go back to Sign In
+                                    currentScreen = AuthScreen.SIGN_IN
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    BadgerOnSaleTheme {
-        Greeting("Android")
     }
 }
