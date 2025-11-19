@@ -9,8 +9,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ChatBubbleOutline
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,7 +50,7 @@ fun ItemDescriptionPage(
     ) {
         // back arrow
         Icon(
-            imageVector = Icons.Default.ArrowBack,
+            imageVector = Icons.Filled.ArrowBack,
             contentDescription = "Back",
             tint = Color.Black,
             modifier = Modifier
@@ -141,14 +141,14 @@ fun ItemDescriptionPage(
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
                 Icon(
-                    imageVector = Icons.Default.FavoriteBorder,
+                    imageVector = Icons.Outlined.FavoriteBorder,
                     contentDescription = "Add to Favorites",
                     tint = Color.Black,
                     modifier = Modifier.size(36.dp)
                 )
 
                 Icon(
-                    imageVector = Icons.Default.ChatBubbleOutline,
+                    imageVector = Icons.Outlined.ChatBubbleOutline,
                     contentDescription = "Message Seller",
                     tint = Color.Black,
                     modifier = Modifier.size(36.dp)
