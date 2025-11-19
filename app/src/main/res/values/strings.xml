@@ -1,8 +1,7 @@
 <resources>
-    <string name="app_name">BadgerOnSale</string>
-    <string name="sign_in">Sign In</string>
-    <string name="uw_email">UW Email</string>
-    <string name="password">Password</string>
-    <string name="buy_sell_tagline">Buy &amp; sell on campus – safer, faster.</string>
-    <string name="create_account">Create an account</string>
+    <string name="favorites_button">Favorites</string>
+    <string name="edit_profile_button">Edit Profile</string>
+    <string name="view_profile_button">View Profile</string>
+    <string name="create_listing_button">Create Listing</string>
+    <string name="log_out_button">Log Out</string>
 </resources>
