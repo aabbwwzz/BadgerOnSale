@@ -1,4 +1,5 @@
 <resources>
+    <string name="app_name">BadgerOnSale</string>
     <string name="favorites_button">Favorites</string>
     <string name="edit_profile_button">Edit Profile</string>
     <string name="view_profile_button">View Profile</string>
