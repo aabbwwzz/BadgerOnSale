@@ -12,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -25,26 +24,19 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.cs407.badgeronsale.Listing
 import com.cs407.badgeronsale.R
 
 @Composable
 fun FavoritesPage(
+    favorites: List<Listing>,
     onBackClick: () -> Unit = {},
-    onItemClick: (Int) -> Unit = {}
+    onItemClick: (Listing) -> Unit = {},
+    onRemoveClick: (Listing) -> Unit = {}
 ) {
-    // remember the current list of favorites
-    var favorites by remember {
-        mutableStateOf(
-            listOf(
-                R.drawable.favorite_jacket,
-                R.drawable.favorite_ticket
-            )
-        )
-    }
-
     // track which item is about to be deleted
     var showDialog by remember { mutableStateOf(false) }
-    var itemToRemove by remember { mutableStateOf<Int?>(null) }
+    var itemToRemove by remember { mutableStateOf<Listing?>(null) }
 
     Column(
         modifier = Modifier
@@ -74,22 +66,35 @@ fun FavoritesPage(
             )
         }
 
-        // Favorites Grid
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(favorites) { item ->
-                FavoriteItem(
-                    imageRes = item,
-                    onDeleteClick = {
-                        itemToRemove = item
-                        showDialog = true
-                    },
-                    onClick = { onItemClick(item) }
+        if (favorites.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "No favorites yet.\nTap the heart on an item to save it here.",
+                    fontSize = 16.sp,
+                    color = Color.DarkGray
                 )
+            }
+        } else {
+            // Favorites Grid
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(favorites, key = { it.id }) { item ->
+                    FavoriteItem(
+                        listing = item,
+                        onDeleteClick = {
+                            itemToRemove = item
+                            showDialog = true
+                        },
+                        onClick = { onItemClick(item) }
+                    )
+                }
             }
         }
 
@@ -101,7 +106,7 @@ fun FavoritesPage(
                 text = { Text("Are you sure you want to remove this item from favorites?") },
                 confirmButton = {
                     TextButton(onClick = {
-                        favorites = favorites.filterNot { it == itemToRemove }
+                        itemToRemove?.let { onRemoveClick(it) }
                         showDialog = false
                     }) {
                         Text("Remove", color = Color.Red)
@@ -119,7 +124,7 @@ fun FavoritesPage(
 
 @Composable
 fun FavoriteItem(
-    imageRes: Int,
+    listing: Listing,
     onDeleteClick: () -> Unit,
     onClick: () -> Unit
 ) {
@@ -131,13 +136,26 @@ fun FavoriteItem(
             .clickable { onClick() }
     ) {
         Image(
-            painter = painterResource(id = imageRes),
-            contentDescription = "Favorite item",
+            painter = painterResource(id = listing.imageRes),
+            contentDescription = listing.title,
             modifier = Modifier
                 .size(140.dp)
                 .padding(bottom = 8.dp),
             contentScale = ContentScale.Fit
         )
+        Text(
+            text = listing.title,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.Black,
+            modifier = Modifier.padding(bottom = 4.dp)
+        )
+        Text(
+            text = listing.price,
+            fontSize = 14.sp,
+            color = Color.DarkGray
+        )
+        Spacer(modifier = Modifier.height(4.dp))
         Icon(
             imageVector = Icons.Default.Delete,
             contentDescription = "Delete",
@@ -152,5 +170,5 @@ fun FavoriteItem(
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true)
 @Composable
 fun PreviewFavoritesPage() {
-    FavoritesPage()
+    FavoritesPage(favorites = emptyList())
 }

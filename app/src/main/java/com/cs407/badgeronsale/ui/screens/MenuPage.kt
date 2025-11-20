@@ -7,7 +7,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,9 +16,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.vector.ImageVector
 
 @Composable
-fun MenuPage() {
+fun MenuPage(
+    onFavoritesClick: () -> Unit = {},
+    onEditProfileClick: () -> Unit = {},
+    onViewProfileClick: () -> Unit = {},
+    onCreateListingClick: () -> Unit = {},
+    onLogoutClick: () -> Unit = {},
+    onHomeClick: () -> Unit = {}
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -27,24 +34,67 @@ fun MenuPage() {
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text(
-            text = "Menu",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            modifier = Modifier.padding(bottom = 24.dp)
-        )
+        // Top row: "Menu" + Home icon on the right
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Menu",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black
+            )
 
-        MenuButton(Icons.Default.FavoriteBorder, "Favorites")
-        MenuButton(Icons.Default.Edit, "Edit Profile")
-        MenuButton(Icons.Default.Visibility, "View Profile")
-        MenuButton(Icons.Default.Add, "Create Listing")
-        MenuButton(Icons.Default.Logout, "Log Out")
+            Spacer(modifier = Modifier.weight(1f))
+
+            Icon(
+                imageVector = Icons.Default.Home,
+                contentDescription = "Home",
+                tint = Color.Black,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable { onHomeClick() }
+            )
+        }
+
+        // Menu buttons
+        MenuButton(
+            icon = Icons.Default.FavoriteBorder,
+            text = "Favorites",
+            onClick = onFavoritesClick
+        )
+        MenuButton(
+            icon = Icons.Default.Edit,
+            text = "Edit Profile",
+            onClick = onEditProfileClick
+        )
+        MenuButton(
+            icon = Icons.Default.Visibility,
+            text = "View Profile",
+            onClick = onViewProfileClick
+        )
+        MenuButton(
+            icon = Icons.Default.Add,
+            text = "Create Listing",
+            onClick = onCreateListingClick
+        )
+        MenuButton(
+            icon = Icons.Default.Logout,
+            text = "Log Out",
+            onClick = onLogoutClick
+        )
     }
 }
 
 @Composable
-fun MenuButton(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+fun MenuButton(
+    icon: ImageVector,
+    text: String,
+    onClick: () -> Unit
+) {
     Surface(
         color = Color(0xFFE8E8E8),
         shape = RoundedCornerShape(40.dp),
@@ -52,9 +102,7 @@ fun MenuButton(icon: androidx.compose.ui.graphics.vector.ImageVector, text: Stri
             .fillMaxWidth()
             .height(65.dp)
             .padding(vertical = 7.dp)
-            .clickable {
-                // TODO: navigation placeholder
-            },
+            .clickable { onClick() },
         shadowElevation = 2.dp
     ) {
         Row(
@@ -91,8 +139,8 @@ fun MenuButton(icon: androidx.compose.ui.graphics.vector.ImageVector, text: Stri
     }
 }
 
-@Composable
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true)
+@Composable
 fun PreviewMenuPage() {
     MenuPage()
 }

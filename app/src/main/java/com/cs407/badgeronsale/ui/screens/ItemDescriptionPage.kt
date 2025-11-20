@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
@@ -37,6 +38,9 @@ fun ItemDescriptionPage(
         "Perfect for Game Days and Campus Events"
     ),
     imageRes: Int = R.drawable.favorite_jacket,
+    isFavorite: Boolean = false,
+    onFavoriteClick: () -> Unit = {},
+    onMessageClick: () -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
@@ -140,18 +144,27 @@ fun ItemDescriptionPage(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
+                val heartIcon =
+                    if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder
+                val heartTint =
+                    if (isFavorite) Color(0xFFC5050C) else Color.Black
+
                 Icon(
-                    imageVector = Icons.Outlined.FavoriteBorder,
-                    contentDescription = "Add to Favorites",
-                    tint = Color.Black,
-                    modifier = Modifier.size(36.dp)
+                    imageVector = heartIcon,
+                    contentDescription = if (isFavorite) "Remove from Favorites" else "Add to Favorites",
+                    tint = heartTint,
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable { onFavoriteClick() }
                 )
 
                 Icon(
                     imageVector = Icons.Outlined.ChatBubbleOutline,
                     contentDescription = "Message Seller",
                     tint = Color.Black,
-                    modifier = Modifier.size(36.dp)
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clickable { onMessageClick() }
                 )
             }
         }
