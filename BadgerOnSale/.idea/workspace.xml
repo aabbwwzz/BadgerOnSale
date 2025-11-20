@@ -5,22 +5,60 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="c2e3b566-b4be-4ade-85ce-24a86760c158" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/../BadgerApp/app/src/main/res/drawable/apple.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../BadgerApp/app/src/main/res/drawable/avatar.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../BadgerApp/app/src/main/res/drawable/earphone.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/../BadgerApp/app/src/main/res/drawable/tv.png" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/AndroidProjectSystem.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/deploymentTargetSelector.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/migrations.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/runConfigurations.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../BadgerApp/app/build.gradle.kts" beforeDir="false" afterPath="$PROJECT_DIR$/../BadgerApp/app/build.gradle.kts" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../BadgerApp/app/src/main/java/com/cs407/badgerapp/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/../BadgerApp/app/src/main/java/com/cs407/badgerapp/MainActivity.kt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/../BadgerApp/gradle/libs.versions.toml" beforeDir="false" afterPath="$PROJECT_DIR$/../BadgerApp/gradle/libs.versions.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../cs407-fa25-lab07-joe-abdi-lab07" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../cs407-fa25-lab08-joe-abdi-lab07" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/.idea/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/.idea/AndroidProjectSystem.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/.idea/compiler.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/.idea/deploymentTargetSelector.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/.idea/gradle.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/.idea/migrations.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/.idea/misc.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/.idea/runConfigurations.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/.idea/vcs.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/build.gradle.kts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/proguard-rules.pro" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/androidTest/java/com/cs407/lab07/ExampleInstrumentedTest.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/AndroidManifest.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/java/com/cs407/lab07/MainActivity.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/java/com/cs407/lab07/ui/theme/Color.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/java/com/cs407/lab07/ui/theme/Theme.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/java/com/cs407/lab07/ui/theme/Type.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/drawable/ic_launcher_background.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/drawable/ic_launcher_foreground.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-anydpi/ic_launcher.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-anydpi/ic_launcher_round.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-hdpi/ic_launcher.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-hdpi/ic_launcher_round.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-mdpi/ic_launcher.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-mdpi/ic_launcher_round.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-xhdpi/ic_launcher.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-xhdpi/ic_launcher_round.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-xxhdpi/ic_launcher.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-xxxhdpi/ic_launcher.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.webp" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/values/colors.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/values/strings.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/values/themes.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/xml/backup_rules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/main/res/xml/data_extraction_rules.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/app/src/test/java/com/cs407/lab07/ExampleUnitTest.kt" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/build.gradle.kts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/gradle.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/gradle/libs.versions.toml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/gradle/wrapper/gradle-wrapper.jar" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/gradle/wrapper/gradle-wrapper.properties" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/gradlew" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/gradlew.bat" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/../lab07/settings.gradle.kts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../BadgerApp/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../BadgerApp/.idea/gradle.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../BadgerApp/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/../BadgerApp/.idea/misc.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/caches/deviceStreaming.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/../Cardsfolio/cs407-fall-25-lab03-aabbwwzz" beforeDir="false" afterPath="$PROJECT_DIR$/../Cardsfolio/cs407-fall-25-lab03-aabbwwzz" afterDir="false" />
     </list>
