@@ -51,19 +51,20 @@ class MainActivity : ComponentActivity() {
 private fun AppNavigator() {
 
     // Current screen user is on
+
     var current by remember { mutableStateOf(AppScreen.SIGN_IN) }
 
-    // Where we came from when opening an item (Home or Favorites)
+    // Track which screen opened the item details (home or favorites)
     var lastListScreen by remember { mutableStateOf(AppScreen.HOME) }
 
     // Arguments for screens
     var selectedDmId by remember { mutableStateOf("1") }
     var selectedListing by remember { mutableStateOf<Listing?>(null) }
 
-    // Shared favorites across the app
+    // Shared favorites across app (in-memory, hardcoded for now)
     var favorites by remember { mutableStateOf(listOf<Listing>()) }
 
-    // Example user profile (temporary)
+    // Temporary User Profile (hardcoded)
     var userProfile by remember {
         mutableStateOf(
             UserProfile(
@@ -100,14 +101,14 @@ private fun AppNavigator() {
         }
 
         // ----------------------------------------------------------
-        // HOME SCREEN (BROWSE LISTINGS)
+        // HOME SCREEN (LIST OF ITEMS)
         // ----------------------------------------------------------
         AppScreen.HOME -> {
             HomeScreen(
                 onMenuClick = { current = AppScreen.MENU },
                 onMessagesClick = { current = AppScreen.MESSAGES },
-                onSearch = { /* hook up later */ },
-                onFilterChanged = { /* hook up later */ },
+                onSearch = {},
+                onFilterChanged = {},
                 onListingClick = { listing ->
                     selectedListing = listing
                     lastListScreen = AppScreen.HOME
@@ -117,7 +118,7 @@ private fun AppNavigator() {
         }
 
         // ----------------------------------------------------------
-        // MESSAGES SCREEN (LIST OF DMS)
+        // MESSAGES LIST SCREEN
         // ----------------------------------------------------------
         AppScreen.MESSAGES -> {
             MessagesScreen(
@@ -130,7 +131,7 @@ private fun AppNavigator() {
         }
 
         // ----------------------------------------------------------
-        // CHAT DETAIL SCREEN (1:1 DM)
+        // DIRECT MESSAGE CHAT SCREEN
         // ----------------------------------------------------------
         AppScreen.CHAT_DETAIL -> {
             ChatDetailScreen(
@@ -140,7 +141,7 @@ private fun AppNavigator() {
         }
 
         // ----------------------------------------------------------
-        // USER PROFILE SCREEN
+        // PROFILE SCREEN
         // ----------------------------------------------------------
         AppScreen.USER_PROFILE -> {
             UserProfileScreen(
@@ -149,7 +150,7 @@ private fun AppNavigator() {
                 onBack = { current = AppScreen.HOME },
                 onHome = { current = AppScreen.HOME },
                 onEditAccount = { current = AppScreen.EDIT_PROFILE },
-                onListingDeleted = { /* TODO: hook up deletion later */ }
+                onListingDeleted = { /* TODO later */ }
             )
         }
 
@@ -169,7 +170,7 @@ private fun AppNavigator() {
         }
 
         // ----------------------------------------------------------
-        // MAIN MENU SCREEN
+        // MENU PAGE
         // ----------------------------------------------------------
         AppScreen.MENU -> {
             MenuPage(
@@ -177,18 +178,13 @@ private fun AppNavigator() {
                 onEditProfileClick = { current = AppScreen.EDIT_PROFILE },
                 onViewProfileClick = { current = AppScreen.USER_PROFILE },
                 onCreateListingClick = { current = AppScreen.CREATE_LISTING },
-                onLogoutClick = {
-                    // For now just go back to sign-in
-                    current = AppScreen.SIGN_IN
-                },
-                onHomeClick = {
-                    current = AppScreen.HOME
-                }
+                onLogoutClick = { current = AppScreen.SIGN_IN },
+                onHomeClick = { current = AppScreen.HOME }
             )
         }
 
         // ----------------------------------------------------------
-        // FAVORITES SCREEN
+        // FAVORITES PAGE
         // ----------------------------------------------------------
         AppScreen.FAVORITES -> {
             FavoritesPage(
@@ -206,28 +202,26 @@ private fun AppNavigator() {
         }
 
         // ----------------------------------------------------------
-        // CREATE LISTING SCREEN
+        // CREATE LISTING PAGE
         // ----------------------------------------------------------
         AppScreen.CREATE_LISTING -> {
             CreateListingScreen(
                 onBackClick = { current = AppScreen.MENU },
                 onListingCreated = {
-                    // Later you'll also add it to real data.
+                    // For now just go back to Home; later we can add it to mockListings
                     current = AppScreen.HOME
                 }
             )
         }
 
         // ----------------------------------------------------------
-        // ITEM DETAIL / DESCRIPTION SCREEN
+        // ITEM DESCRIPTION PAGE
         // ----------------------------------------------------------
         AppScreen.ITEM_DETAIL -> {
             val listing = selectedListing
             if (listing == null) {
-                // If something went wrong, just recover to Home
-                LaunchedEffect(Unit) {
-                    current = AppScreen.HOME
-                }
+                // Safety fallback
+                LaunchedEffect(Unit) { current = AppScreen.HOME }
             } else {
                 val isFavorite = favorites.any { it.id == listing.id }
 
@@ -243,11 +237,10 @@ private fun AppNavigator() {
                     isFavorite = isFavorite,
                     onFavoriteClick = {
                         favorites =
-                            if (isFavorite) {
+                            if (isFavorite)
                                 favorites.filterNot { it.id == listing.id }
-                            } else {
+                            else
                                 favorites + listing
-                            }
                     },
                     onMessageClick = {
                         current = AppScreen.MESSAGES
