@@ -15,6 +15,7 @@ import com.cs407.badgeronsale.ui.screens.MenuPage
 import com.cs407.badgeronsale.ui.theme.BadgerOnSaleTheme
 import com.cs407.badgeronsale.repository.FavoritesRepository
 import com.cs407.badgeronsale.repository.MessagesRepository
+import com.cs407.badgeronsale.repository.ListingRepository
 import com.cs407.badgeronsale.FirebaseAuthHelper
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.flow.collectLatest
@@ -80,6 +81,8 @@ private fun AppNavigator() {
 
     // Shared favorites across the app - loaded from Firestore
     var favorites by remember { mutableStateOf(listOf<Listing>()) }
+    // Track items that have been deleted to prevent them from reappearing
+    var deletedFavoriteIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     
     // Load favorites from Firestore when user is signed in - real-time updates
     LaunchedEffect(FirebaseAuthHelper.isSignedIn()) {
@@ -95,7 +98,25 @@ private fun AppNavigator() {
                 }
                 
                 FavoritesRepository.getUserFavorites().collectLatest { favoriteListings ->
-                    favorites = favoriteListings
+                    // Filter out any items that have been marked as deleted
+                    val filtered = favoriteListings.filter { listing ->
+                        !deletedFavoriteIds.contains(listing.id)
+                    }
+                    
+                    // If an item is in the deleted set but appears in the new list,
+                    // it means it was re-added, so remove it from deleted set
+                    val reAddedIds = favoriteListings.map { it.id }.intersect(deletedFavoriteIds)
+                    if (reAddedIds.isNotEmpty()) {
+                        println("Warning: ${reAddedIds.size} deleted item(s) reappeared, re-deleting: $reAddedIds")
+                        // Re-delete them
+                        coroutineScope.launch {
+                            reAddedIds.forEach { listingId ->
+                                FavoritesRepository.removeFromFavorites(listingId)
+                            }
+                        }
+                    }
+                    
+                    favorites = filtered
                 }
             } catch (e: Exception) {
                 println("Error collecting favorites: ${e.message}")
@@ -104,6 +125,7 @@ private fun AppNavigator() {
             }
         } else {
             favorites = emptyList()
+            deletedFavoriteIds = emptySet()
         }
     }
 
@@ -382,25 +404,64 @@ private fun AppNavigator() {
                     current = AppScreen.ITEM_DETAIL
                 },
                 onRemoveClick = { listing ->
-                    // Remove from Firestore
+                    // Immediately mark as deleted to prevent reappearing
+                    deletedFavoriteIds = deletedFavoriteIds + listing.id
+                    
+                    // Remove from Firestore - optimistic UI already updated
                     coroutineScope.launch {
                         try {
                             println("Removing favorite for listing ID: ${listing.id}, title: ${listing.title}")
-                            val result = FavoritesRepository.removeFromFavorites(listing.id)
-                            if (result.isFailure) {
-                                val error = result.exceptionOrNull()
-                                println("Failed to remove favorite: ${error?.message}")
-                                println("Error details: ${error}")
-                                error?.printStackTrace()
-                            } else {
-                                println("Successfully removed favorite: ${listing.id}")
-                                // Small delay to ensure Firestore has processed the deletion
-                                delay(200)
+                            
+                            // Aggressively delete all instances
+                            var deletionSuccess = false
+                            var attempts = 0
+                            val maxAttempts = 5
+                            
+                            while (!deletionSuccess && attempts < maxAttempts) {
+                                attempts++
+                                
+                                // First, clean up any duplicates proactively
+                                FavoritesRepository.cleanupDuplicateFavorites().onSuccess { count ->
+                                    if (count > 0) {
+                                        println("Cleaned up $count duplicate favorites before deletion (attempt $attempts)")
+                                    }
+                                }
+                                
+                                val result = FavoritesRepository.removeFromFavorites(listing.id)
+                                if (result.isSuccess) {
+                                    println("Successfully removed favorite: ${listing.id} (attempt $attempts)")
+                                    
+                                    // Verify deletion
+                                    delay(300)
+                                    val isStillFavorited = FavoritesRepository.isFavorited(listing.id)
+                                    if (!isStillFavorited) {
+                                        deletionSuccess = true
+                                        println("Verified: Favorite successfully removed")
+                                        // Keep it in deletedFavoriteIds to prevent reappearing
+                                    } else {
+                                        println("Warning: Still favorited after deletion, retrying... (attempt $attempts)")
+                                        delay(200)
+                                    }
+                                } else {
+                                    val error = result.exceptionOrNull()
+                                    println("Failed to remove favorite (attempt $attempts): ${error?.message}")
+                                    if (attempts < maxAttempts) {
+                                        delay(300)
+                                    }
+                                }
                             }
-                            // The favorites list will update automatically via the Flow
+                            
+                            if (!deletionSuccess) {
+                                println("ERROR: Failed to remove favorite after $maxAttempts attempts")
+                                // Keep it in deletedFavoriteIds anyway to prevent UI from showing it
+                            }
+                            
+                            // The favorites list will update automatically via the real-time Flow
+                            // The deletedFavoriteIds filter will prevent it from reappearing
                         } catch (e: Exception) {
                             println("Error removing favorite: ${e.message}")
                             e.printStackTrace()
+                            // Keep it in deletedFavoriteIds to prevent reappearing even on error
                         }
                     }
                 }
@@ -433,6 +494,10 @@ private fun AppNavigator() {
             } else {
                 // Calculate favorite state from the favorites list
                 val isFavorite = favorites.any { it.id == listing.id }
+                
+                // Check if current user is the owner of this listing
+                val currentUserId = FirebaseAuthHelper.getCurrentUser()?.uid
+                val isOwner = currentUserId != null && listing.sellerId == currentUserId
 
                 ItemDescriptionPage(
                     itemName = listing.title,
@@ -446,6 +511,7 @@ private fun AppNavigator() {
                     imageRes = listing.imageRes,
                     imageUrl = listing.imageUrl,
                     isFavorite = isFavorite,
+                    isOwner = isOwner,
                     onFavoriteClick = {
                         // Toggle favorite - add if not favorited, remove if favorited
                         coroutineScope.launch {
@@ -488,6 +554,26 @@ private fun AppNavigator() {
                             }
                         } else {
                             current = AppScreen.MESSAGES
+                        }
+                    },
+                    onDeleteClick = {
+                        // Delete the listing
+                        if (currentUserId != null) {
+                            coroutineScope.launch {
+                                try {
+                                    val result = ListingRepository.deleteListing(listing.id, currentUserId)
+                                    if (result.isSuccess) {
+                                        println("Successfully deleted listing: ${listing.id}")
+                                        // Navigate back to the previous screen
+                                        current = lastListScreen
+                                    } else {
+                                        println("Failed to delete listing: ${result.exceptionOrNull()?.message}")
+                                    }
+                                } catch (e: Exception) {
+                                    println("Error deleting listing: ${e.message}")
+                                    e.printStackTrace()
+                                }
+                            }
                         }
                     },
                     onBackClick = {

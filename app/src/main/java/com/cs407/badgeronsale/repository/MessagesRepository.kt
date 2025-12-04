@@ -5,7 +5,10 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.launch
 
 data class Message(
     val messageID: String,
@@ -76,163 +79,280 @@ object MessagesRepository {
         }
     }
 
-    // Get messages between current user and another user
-    fun getMessages(otherUserID: String, listingID: String? = null): Flow<List<Message>> = flow {
+    // Get messages between current user and another user - REAL-TIME
+    fun getMessages(otherUserID: String, listingID: String? = null): Flow<List<Message>> = callbackFlow {
         val currentUserId = getCurrentUserId() ?: run {
-            emit(emptyList())
-            return@flow
+            trySend(emptyList())
+            close()
+            return@callbackFlow
         }
 
         try {
-            // Get messages where current user is sender and other is receiver
+            // Create queries for sent and received messages
             val sentQuery = db.collection(COLLECTION_MESSAGES)
                 .whereEqualTo("SenderID", currentUserId)
                 .whereEqualTo("ReceiverID", otherUserID)
             
-            // Get messages where current user is receiver and other is sender
             val receivedQuery = db.collection(COLLECTION_MESSAGES)
                 .whereEqualTo("SenderID", otherUserID)
                 .whereEqualTo("ReceiverID", currentUserId)
             
-            // If listingID is specified, filter by it
-            val sentSnapshot = if (listingID != null) {
-                sentQuery.whereEqualTo("ListingID", listingID).orderBy("Timestamp", Query.Direction.ASCENDING).get().await()
+            // Apply listing filter and ordering if needed
+            val finalSentQuery = if (listingID != null) {
+                sentQuery.whereEqualTo("ListingID", listingID).orderBy("Timestamp", Query.Direction.ASCENDING)
             } else {
-                sentQuery.orderBy("Timestamp", Query.Direction.ASCENDING).get().await()
+                sentQuery.orderBy("Timestamp", Query.Direction.ASCENDING)
             }
             
-            val receivedSnapshot = if (listingID != null) {
-                receivedQuery.whereEqualTo("ListingID", listingID).orderBy("Timestamp", Query.Direction.ASCENDING).get().await()
+            val finalReceivedQuery = if (listingID != null) {
+                receivedQuery.whereEqualTo("ListingID", listingID).orderBy("Timestamp", Query.Direction.ASCENDING)
             } else {
-                receivedQuery.orderBy("Timestamp", Query.Direction.ASCENDING).get().await()
+                receivedQuery.orderBy("Timestamp", Query.Direction.ASCENDING)
             }
             
-            // Combine and sort messages
-            val allMessages = mutableListOf<Message>()
+            // Store snapshots from both listeners
+            var sentSnapshot: com.google.firebase.firestore.QuerySnapshot? = null
+            var receivedSnapshot: com.google.firebase.firestore.QuerySnapshot? = null
             
-            sentSnapshot.documents.forEach { doc ->
-                val data = doc.data ?: return@forEach
-                allMessages.add(
-                    Message(
-                        messageID = doc.id,
-                        senderID = data["SenderID"] as? String ?: "",
-                        receiverID = data["ReceiverID"] as? String ?: "",
-                        listingID = data["ListingID"] as? String,
-                        messageText = data["MessageText"] as? String ?: "",
-                        timestamp = data["Timestamp"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now()
-                    )
-                )
-            }
-            
-            receivedSnapshot.documents.forEach { doc ->
-                val data = doc.data ?: return@forEach
-                allMessages.add(
-                    Message(
-                        messageID = doc.id,
-                        senderID = data["SenderID"] as? String ?: "",
-                        receiverID = data["ReceiverID"] as? String ?: "",
-                        listingID = data["ListingID"] as? String,
-                        messageText = data["MessageText"] as? String ?: "",
-                        timestamp = data["Timestamp"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now()
-                    )
-                )
-            }
-            
-            // Sort by timestamp
-            allMessages.sortBy { it.timestamp.seconds }
-            
-            emit(allMessages)
-        } catch (e: Exception) {
-            emit(emptyList())
-        }
-    }
-
-    // Get all conversations for current user
-    fun getConversations(): Flow<List<Conversation>> = flow {
-        val currentUserId = getCurrentUserId() ?: run {
-            emit(emptyList())
-            return@flow
-        }
-
-        try {
-            // Get all messages where current user is sender or receiver
-            val sentSnapshot = db.collection(COLLECTION_MESSAGES)
-                .whereEqualTo("SenderID", currentUserId)
-                .orderBy("Timestamp", Query.Direction.DESCENDING)
-                .get()
-                .await()
-            
-            val receivedSnapshot = db.collection(COLLECTION_MESSAGES)
-                .whereEqualTo("ReceiverID", currentUserId)
-                .orderBy("Timestamp", Query.Direction.DESCENDING)
-                .get()
-                .await()
-            
-            // Map of other user ID to conversation info
-            val conversationsMap = mutableMapOf<String, Conversation>()
-            
-            // Process sent messages
-            sentSnapshot.documents.forEach { doc ->
-                val data = doc.data ?: return@forEach
-                val receiverID = data["ReceiverID"] as? String ?: return@forEach
+            // Helper function to combine and emit messages
+            fun combineAndEmit() {
+                val allMessages = mutableListOf<Message>()
                 
-                if (!conversationsMap.containsKey(receiverID)) {
-                    // Fetch user info
-                    val userDoc = db.collection(COLLECTION_USERS).document(receiverID).get().await()
-                    val userData = userDoc.data
-                    
-                    conversationsMap[receiverID] = Conversation(
-                        otherUserID = receiverID,
-                        otherUserName = userData?.get("Name") as? String ?: "Unknown",
-                        otherUserProfilePicURL = userData?.get("ProfilePicURL") as? String,
-                        lastMessage = data["MessageText"] as? String,
-                        lastMessageTimestamp = data["Timestamp"] as? com.google.firebase.Timestamp,
-                        listingID = data["ListingID"] as? String
+                sentSnapshot?.documents?.forEach { doc ->
+                    val data = doc.data ?: return@forEach
+                    allMessages.add(
+                        Message(
+                            messageID = doc.id,
+                            senderID = data["SenderID"] as? String ?: "",
+                            receiverID = data["ReceiverID"] as? String ?: "",
+                            listingID = data["ListingID"] as? String,
+                            messageText = data["MessageText"] as? String ?: "",
+                            timestamp = data["Timestamp"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now()
+                        )
                     )
                 }
-            }
-            
-            // Process received messages
-            receivedSnapshot.documents.forEach { doc ->
-                val data = doc.data ?: return@forEach
-                val senderID = data["SenderID"] as? String ?: return@forEach
                 
-                if (!conversationsMap.containsKey(senderID)) {
-                    // Fetch user info
-                    val userDoc = db.collection(COLLECTION_USERS).document(senderID).get().await()
-                    val userData = userDoc.data
-                    
-                    conversationsMap[senderID] = Conversation(
-                        otherUserID = senderID,
-                        otherUserName = userData?.get("Name") as? String ?: "Unknown",
-                        otherUserProfilePicURL = userData?.get("ProfilePicURL") as? String,
-                        lastMessage = data["MessageText"] as? String,
-                        lastMessageTimestamp = data["Timestamp"] as? com.google.firebase.Timestamp,
-                        listingID = data["ListingID"] as? String
-                    )
-                } else {
-                    // Update if this message is more recent
-                    val existing = conversationsMap[senderID]!!
-                    val messageTimestamp = data["Timestamp"] as? com.google.firebase.Timestamp
-                    if (messageTimestamp != null && 
-                        (existing.lastMessageTimestamp == null || 
-                         messageTimestamp.seconds > existing.lastMessageTimestamp.seconds)) {
-                        conversationsMap[senderID] = existing.copy(
-                            lastMessage = data["MessageText"] as? String,
-                            lastMessageTimestamp = messageTimestamp
+                receivedSnapshot?.documents?.forEach { doc ->
+                    val data = doc.data ?: return@forEach
+                    // Avoid duplicates
+                    if (!allMessages.any { it.messageID == doc.id }) {
+                        allMessages.add(
+                            Message(
+                                messageID = doc.id,
+                                senderID = data["SenderID"] as? String ?: "",
+                                receiverID = data["ReceiverID"] as? String ?: "",
+                                listingID = data["ListingID"] as? String,
+                                messageText = data["MessageText"] as? String ?: "",
+                                timestamp = data["Timestamp"] as? com.google.firebase.Timestamp ?: com.google.firebase.Timestamp.now()
+                            )
                         )
                     }
                 }
+                
+                // Sort by timestamp
+                allMessages.sortBy { it.timestamp.seconds }
+                
+                try {
+                    trySend(allMessages)
+                } catch (e: Exception) {
+                    // Channel might be closed, ignore
+                }
             }
             
-            // Sort by last message timestamp (most recent first)
-            val conversations = conversationsMap.values.sortedByDescending { 
-                it.lastMessageTimestamp?.seconds ?: 0L 
+            // Set up real-time listeners for both queries
+            val sentListener = finalSentQuery.addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    println("Error in sent messages listener: ${error.message}")
+                    return@addSnapshotListener
+                }
+                
+                sentSnapshot = snapshot
+                combineAndEmit()
             }
             
-            emit(conversations)
+            val receivedListener = finalReceivedQuery.addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    println("Error in received messages listener: ${error.message}")
+                    return@addSnapshotListener
+                }
+                
+                receivedSnapshot = snapshot
+                combineAndEmit()
+            }
+            
+            awaitClose {
+                try {
+                    sentListener.remove()
+                    receivedListener.remove()
+                } catch (e: Exception) {
+                    // Ignore errors on cleanup
+                }
+            }
         } catch (e: Exception) {
-            emit(emptyList())
+            println("Error setting up messages listener: ${e.message}")
+            try {
+                trySend(emptyList())
+            } catch (ex: Exception) {
+                // Channel might be closed, ignore
+            }
+            close()
+        }
+    }
+
+    // Get all conversations for current user - REAL-TIME
+    fun getConversations(): Flow<List<Conversation>> = callbackFlow {
+        val currentUserId = getCurrentUserId() ?: run {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+
+        try {
+            // Create queries for sent and received messages
+            val sentQuery = db.collection(COLLECTION_MESSAGES)
+                .whereEqualTo("SenderID", currentUserId)
+                .orderBy("Timestamp", Query.Direction.DESCENDING)
+            
+            val receivedQuery = db.collection(COLLECTION_MESSAGES)
+                .whereEqualTo("ReceiverID", currentUserId)
+                .orderBy("Timestamp", Query.Direction.DESCENDING)
+            
+            // Store snapshots from both listeners
+            var sentSnapshot: com.google.firebase.firestore.QuerySnapshot? = null
+            var receivedSnapshot: com.google.firebase.firestore.QuerySnapshot? = null
+            
+            // Cache for user info to avoid repeated fetches
+            val userInfoCache = mutableMapOf<String, Map<String, Any>>()
+            
+            // Helper function to build conversations from snapshots
+            suspend fun buildConversations() {
+                val conversationsMap = mutableMapOf<String, Conversation>()
+                
+                // Process sent messages
+                sentSnapshot?.documents?.forEach { doc ->
+                    val data = doc.data ?: return@forEach
+                    val receiverID = data["ReceiverID"] as? String ?: return@forEach
+                    
+                    // Get user info (from cache or fetch)
+                    val userData = userInfoCache[receiverID] ?: run {
+                        try {
+                            val userDoc = db.collection(COLLECTION_USERS).document(receiverID).get().await()
+                            val userDataMap = userDoc.data ?: emptyMap()
+                            userInfoCache[receiverID] = userDataMap
+                            userDataMap
+                        } catch (e: Exception) {
+                            println("Error fetching user info for $receiverID: ${e.message}")
+                            emptyMap()
+                        }
+                    }
+                    
+                    val messageTimestamp = data["Timestamp"] as? com.google.firebase.Timestamp
+                    val existing = conversationsMap[receiverID]
+                    
+                    if (existing == null || 
+                        (messageTimestamp != null && 
+                         (existing.lastMessageTimestamp == null || 
+                          messageTimestamp.seconds > existing.lastMessageTimestamp.seconds))) {
+                        conversationsMap[receiverID] = Conversation(
+                            otherUserID = receiverID,
+                            otherUserName = userData["Name"] as? String ?: "Unknown",
+                            otherUserProfilePicURL = userData["ProfilePicURL"] as? String,
+                            lastMessage = data["MessageText"] as? String,
+                            lastMessageTimestamp = messageTimestamp,
+                            listingID = data["ListingID"] as? String
+                        )
+                    }
+                }
+                
+                // Process received messages
+                receivedSnapshot?.documents?.forEach { doc ->
+                    val data = doc.data ?: return@forEach
+                    val senderID = data["SenderID"] as? String ?: return@forEach
+                    
+                    // Get user info (from cache or fetch)
+                    val userData = userInfoCache[senderID] ?: run {
+                        try {
+                            val userDoc = db.collection(COLLECTION_USERS).document(senderID).get().await()
+                            val userDataMap = userDoc.data ?: emptyMap()
+                            userInfoCache[senderID] = userDataMap
+                            userDataMap
+                        } catch (e: Exception) {
+                            println("Error fetching user info for $senderID: ${e.message}")
+                            emptyMap()
+                        }
+                    }
+                    
+                    val messageTimestamp = data["Timestamp"] as? com.google.firebase.Timestamp
+                    val existing = conversationsMap[senderID]
+                    
+                    if (existing == null || 
+                        (messageTimestamp != null && 
+                         (existing.lastMessageTimestamp == null || 
+                          messageTimestamp.seconds > existing.lastMessageTimestamp.seconds))) {
+                        conversationsMap[senderID] = Conversation(
+                            otherUserID = senderID,
+                            otherUserName = userData["Name"] as? String ?: "Unknown",
+                            otherUserProfilePicURL = userData["ProfilePicURL"] as? String,
+                            lastMessage = data["MessageText"] as? String,
+                            lastMessageTimestamp = messageTimestamp,
+                            listingID = data["ListingID"] as? String
+                        )
+                    }
+                }
+                
+                // Sort by last message timestamp (most recent first)
+                val conversations = conversationsMap.values.sortedByDescending { 
+                    it.lastMessageTimestamp?.seconds ?: 0L 
+                }
+                
+                try {
+                    trySend(conversations)
+                } catch (e: Exception) {
+                    // Channel might be closed, ignore
+                }
+            }
+            
+            // Set up real-time listeners
+            val sentListener = sentQuery.addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    println("Error in sent conversations listener: ${error.message}")
+                    return@addSnapshotListener
+                }
+                
+                sentSnapshot = snapshot
+                launch {
+                    buildConversations()
+                }
+            }
+            
+            val receivedListener = receivedQuery.addSnapshotListener { snapshot, error ->
+                if (error != null) {
+                    println("Error in received conversations listener: ${error.message}")
+                    return@addSnapshotListener
+                }
+                
+                receivedSnapshot = snapshot
+                launch {
+                    buildConversations()
+                }
+            }
+            
+            awaitClose {
+                try {
+                    sentListener.remove()
+                    receivedListener.remove()
+                } catch (e: Exception) {
+                    // Ignore errors on cleanup
+                }
+            }
+        } catch (e: Exception) {
+            println("Error setting up conversations listener: ${e.message}")
+            try {
+                trySend(emptyList())
+            } catch (ex: Exception) {
+                // Channel might be closed, ignore
+            }
+            close()
         }
     }
 

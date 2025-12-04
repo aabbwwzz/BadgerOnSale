@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,6 +46,7 @@ fun ChatDetailScreen(
     var input by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
     val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
 
     // Load other user info
     LaunchedEffect(otherUserId) {
@@ -59,11 +62,18 @@ fun ChatDetailScreen(
         }
     }
 
-    // Load messages
+    // Load messages - REAL-TIME
     LaunchedEffect(otherUserId, listingId) {
         MessagesRepository.getMessages(otherUserId, listingId).collectLatest { msgs ->
+            val previousCount = messages.size
             messages = msgs
             isLoading = false
+            
+            // Auto-scroll to bottom when new messages arrive
+            if (msgs.isNotEmpty() && (previousCount == 0 || msgs.size > previousCount)) {
+                kotlinx.coroutines.delay(100) // Small delay to ensure list is updated
+                listState.animateScrollToItem(msgs.size - 1)
+            }
         }
     }
 
@@ -122,6 +132,9 @@ fun ChatDetailScreen(
                                 )
                                 if (result.isSuccess) {
                                     input = ""
+                                    // Auto-scroll to bottom after sending
+                                    kotlinx.coroutines.delay(200)
+                                    listState.animateScrollToItem(messages.size)
                                 }
                             }
                         }
@@ -143,6 +156,7 @@ fun ChatDetailScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize().background(Color(0xFFF2F2F2)).padding(padding),
                 contentPadding = PaddingValues(vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)

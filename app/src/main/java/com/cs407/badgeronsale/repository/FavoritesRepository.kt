@@ -44,6 +44,7 @@ object FavoritesRepository {
             .whereEqualTo("UserID", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
+                    println("Error in favorites listener: ${error.message}")
                     try {
                         trySend(emptyList())
                     } catch (e: Exception) {
@@ -61,12 +62,32 @@ object FavoritesRepository {
                     return@addSnapshotListener
                 }
 
+                // Check for document changes - if documents were deleted, handle them
+                if (!snapshot.documentChanges.isEmpty()) {
+                    val deletedIds = snapshot.documentChanges
+                        .filter { it.type == com.google.firebase.firestore.DocumentChange.Type.REMOVED }
+                        .mapNotNull { it.document.getString("ListingID")?.trim() }
+                        .filter { it.isNotEmpty() }
+                    
+                    if (deletedIds.isNotEmpty()) {
+                        println("Detected ${deletedIds.size} favorite deletion(s): $deletedIds")
+                    }
+                }
+
                 // Get listing IDs from favorites (using ListingID field from schema)
-                // Remove duplicates and empty strings
+                // Only use documents that actually exist (not deleted)
+                // Remove duplicates and empty strings - use a Set to ensure uniqueness
                 val listingIds = snapshot.documents
-                    .mapNotNull { it.getString("ListingID") }
+                    .mapNotNull { doc ->
+                        // Double-check the document still exists
+                        if (doc.exists()) {
+                            doc.getString("ListingID")?.trim()
+                        } else {
+                            null
+                        }
+                    }
                     .filter { it.isNotEmpty() }
-                    .distinct()
+                    .toSet() // Use Set to ensure no duplicates
 
                 if (listingIds.isEmpty()) {
                     try {
@@ -81,9 +102,13 @@ object FavoritesRepository {
                 launch {
                     try {
                         val listings = mutableListOf<Listing>()
+                        val processedIds = mutableSetOf<String>() // Track processed IDs to avoid duplicates
+                        
                         for (listingId in listingIds) {
                             try {
-                                if (listingId.isNotEmpty()) {
+                                if (listingId.isNotEmpty() && !processedIds.contains(listingId)) {
+                                    processedIds.add(listingId)
+                                    
                                     val listingDoc = db.collection(COLLECTION_LISTINGS)
                                         .document(listingId)
                                         .get()
@@ -93,7 +118,26 @@ object FavoritesRepository {
                                         val data = listingDoc.data ?: continue
                                         val listing = documentToListing(listingId, data)
                                         if (listing != null) {
-                                            listings.add(listing)
+                                            // Only add if not already in list (extra safety check)
+                                            if (!listings.any { it.id == listingId }) {
+                                                listings.add(listing)
+                                            }
+                                        }
+                                    } else {
+                                        // Listing doesn't exist - clean up the favorite entry
+                                        println("Listing $listingId doesn't exist, cleaning up favorite entry")
+                                        try {
+                                            val favoriteDocs = db.collection(COLLECTION_FAVORITES)
+                                                .whereEqualTo("UserID", userId)
+                                                .whereEqualTo("ListingID", listingId)
+                                                .get()
+                                                .await()
+                                            
+                                            for (favDoc in favoriteDocs.documents) {
+                                                favDoc.reference.delete().await()
+                                            }
+                                        } catch (cleanupError: Exception) {
+                                            println("Error cleaning up favorite for deleted listing: ${cleanupError.message}")
                                         }
                                     }
                                 }
@@ -103,8 +147,12 @@ object FavoritesRepository {
                                 continue
                             }
                         }
+                        
+                        // Final check: ensure no duplicates by ID
+                        val uniqueListings = listings.distinctBy { it.id }
+                        
                         try {
-                            trySend(listings)
+                            trySend(uniqueListings)
                         } catch (e: Exception) {
                             // Channel might be closed, ignore
                         }
@@ -164,7 +212,7 @@ object FavoritesRepository {
         }
     }
 
-    // Remove listing from favorites - removes ALL duplicates
+    // Remove listing from favorites - removes ALL duplicates with retry logic
     suspend fun removeFromFavorites(listingId: String): Result<Unit> {
         val userId = auth.currentUser?.uid ?: return Result.failure(Exception("User not authenticated"))
         
@@ -176,65 +224,119 @@ object FavoritesRepository {
             
             println("Attempting to delete favorite for listing: $listingId, user: $userId")
             
-            // Find ALL favorite documents for this user and listing (including duplicates)
-            // Try multiple times to catch all variations
-            var snapshot = db.collection(COLLECTION_FAVORITES)
-                .whereEqualTo("UserID", userId)
-                .whereEqualTo("ListingID", listingId)
-                .get()
-                .await()
+            // Try multiple deletion attempts to ensure all duplicates are removed
+            var maxRetries = 3
+            var allDeleted = false
             
-            // Also check for any case variations or extra spaces
-            if (snapshot.isEmpty) {
-                // Try with trimmed listingId
-                val trimmedId = listingId.trim()
-                if (trimmedId != listingId) {
-                    snapshot = db.collection(COLLECTION_FAVORITES)
-                        .whereEqualTo("UserID", userId)
-                        .whereEqualTo("ListingID", trimmedId)
-                        .get()
-                        .await()
+            while (maxRetries > 0 && !allDeleted) {
+                // Find ALL favorite documents for this user and listing
+                val snapshot = db.collection(COLLECTION_FAVORITES)
+                    .whereEqualTo("UserID", userId)
+                    .whereEqualTo("ListingID", listingId)
+                    .get()
+                    .await()
+                
+                if (snapshot.isEmpty) {
+                    // Also try with trimmed listingId in case of whitespace issues
+                    val trimmedId = listingId.trim()
+                    if (trimmedId != listingId) {
+                        val trimmedSnapshot = db.collection(COLLECTION_FAVORITES)
+                            .whereEqualTo("UserID", userId)
+                            .whereEqualTo("ListingID", trimmedId)
+                            .get()
+                            .await()
+                        
+                        if (trimmedSnapshot.isEmpty) {
+                            println("No favorites found to delete for listing: $listingId (already deleted)")
+                            allDeleted = true
+                            break
+                        } else {
+                            // Delete trimmed version
+                            for (doc in trimmedSnapshot.documents) {
+                                try {
+                                    println("Deleting favorite document (trimmed): ${doc.id}, ListingID: ${doc.getString("ListingID")}")
+                                    doc.reference.delete().await()
+                                } catch (e: Exception) {
+                                    println("Error deleting favorite document ${doc.id}: ${e.message}")
+                                }
+                            }
+                        }
+                    } else {
+                        println("No favorites found to delete for listing: $listingId (already deleted)")
+                        allDeleted = true
+                        break
+                    }
+                } else {
+                    println("Found ${snapshot.documents.size} favorite document(s) to delete for listing: $listingId (attempt ${4 - maxRetries})")
+                    
+                    // Delete ALL matching documents using batch delete for better performance
+                    val batch = db.batch()
+                    snapshot.documents.forEach { doc ->
+                        try {
+                            println("Marking favorite document for deletion: ${doc.id}, ListingID: ${doc.getString("ListingID")}")
+                            batch.delete(doc.reference)
+                        } catch (e: Exception) {
+                            println("Error adding to batch delete: ${e.message}")
+                        }
+                    }
+                    
+                    // Commit batch deletion
+                    try {
+                        batch.commit().await()
+                        println("Batch deletion committed successfully")
+                    } catch (e: Exception) {
+                        println("Error committing batch deletion: ${e.message}")
+                        // Fallback to individual deletions
+                        for (doc in snapshot.documents) {
+                            try {
+                                doc.reference.delete().await()
+                                println("Successfully deleted favorite document: ${doc.id}")
+                            } catch (ex: Exception) {
+                                println("Error deleting favorite document ${doc.id}: ${ex.message}")
+                            }
+                        }
+                    }
+                }
+                
+                // Verify deletion with a small delay to allow Firestore to process
+                kotlinx.coroutines.delay(100)
+                val verifySnapshot = db.collection(COLLECTION_FAVORITES)
+                    .whereEqualTo("UserID", userId)
+                    .whereEqualTo("ListingID", listingId)
+                    .get()
+                    .await()
+                
+                if (verifySnapshot.isEmpty) {
+                    println("Successfully verified: All favorites removed for listing: $listingId")
+                    allDeleted = true
+                } else {
+                    println("Warning: ${verifySnapshot.documents.size} favorite(s) still exist after deletion, retrying...")
+                    maxRetries--
                 }
             }
             
-            if (snapshot.isEmpty) {
-                // Check if there are any favorites for this user at all
-                val allUserFavorites = db.collection(COLLECTION_FAVORITES)
+            if (!allDeleted && maxRetries == 0) {
+                println("ERROR: Failed to delete all favorites after 3 attempts")
+                // Try one more time with a different approach - get all favorites and filter
+                val allFavorites = db.collection(COLLECTION_FAVORITES)
                     .whereEqualTo("UserID", userId)
                     .get()
                     .await()
                 
-                println("No favorites found to delete for listing: $listingId")
-                println("Total favorites for user: ${allUserFavorites.documents.size}")
-                // Return success even if not found - it's already deleted
-                return Result.success(Unit)
-            }
-            
-            println("Found ${snapshot.documents.size} favorite document(s) to delete for listing: $listingId")
-            
-            // Delete ALL matching documents sequentially to ensure they're all deleted
-            for (doc in snapshot.documents) {
-                try {
-                    println("Deleting favorite document: ${doc.id}, ListingID: ${doc.getString("ListingID")}")
-                    doc.reference.delete().await()
-                    println("Successfully deleted favorite document: ${doc.id}")
-                } catch (e: Exception) {
-                    println("Error deleting favorite document ${doc.id}: ${e.message}")
-                    // Continue deleting other documents even if one fails
+                val remaining = allFavorites.documents.filter { 
+                    it.getString("ListingID") == listingId || it.getString("ListingID")?.trim() == listingId.trim()
                 }
-            }
-            
-            // Verify deletion by checking again
-            val verifySnapshot = db.collection(COLLECTION_FAVORITES)
-                .whereEqualTo("UserID", userId)
-                .whereEqualTo("ListingID", listingId)
-                .get()
-                .await()
-            
-            if (verifySnapshot.isEmpty) {
-                println("Successfully verified: All favorites removed for listing: $listingId")
-            } else {
-                println("Warning: ${verifySnapshot.documents.size} favorite(s) still exist after deletion")
+                
+                if (remaining.isNotEmpty()) {
+                    println("Found ${remaining.size} remaining favorites, deleting individually...")
+                    for (doc in remaining) {
+                        try {
+                            doc.reference.delete().await()
+                        } catch (e: Exception) {
+                            println("Final attempt error: ${e.message}")
+                        }
+                    }
+                }
             }
             
             Result.success(Unit)

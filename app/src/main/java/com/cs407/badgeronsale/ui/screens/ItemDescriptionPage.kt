@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.Icon
@@ -43,8 +44,10 @@ fun ItemDescriptionPage(
     imageRes: Int? = R.drawable.favorite_jacket,
     imageUrl: String? = null,
     isFavorite: Boolean = false,
+    isOwner: Boolean = false,
     onFavoriteClick: () -> Unit = {},
     onMessageClick: () -> Unit = {},
+    onDeleteClick: () -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
@@ -174,34 +177,47 @@ fun ItemDescriptionPage(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // favorite + chat icons
+            // favorite + chat icons (or delete icon if owner)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(40.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             ) {
-                val heartIcon =
-                    if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder
-                val heartTint =
-                    if (isFavorite) Color(0xFFC5050C) else Color.Black
+                if (isOwner) {
+                    // Show delete icon for owner
+                    Icon(
+                        imageVector = Icons.Filled.Delete,
+                        contentDescription = "Delete Listing",
+                        tint = Color(0xFFC5050C),
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clickable { onDeleteClick() }
+                    )
+                } else {
+                    // Show favorite and chat icons for non-owners
+                    val heartIcon =
+                        if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder
+                    val heartTint =
+                        if (isFavorite) Color(0xFFC5050C) else Color.Black
 
-                Icon(
-                    imageVector = heartIcon,
-                    contentDescription = if (isFavorite) "Remove from Favorites" else "Add to Favorites",
-                    tint = heartTint,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clickable { onFavoriteClick() }
-                )
+                    Icon(
+                        imageVector = heartIcon,
+                        contentDescription = if (isFavorite) "Remove from Favorites" else "Add to Favorites",
+                        tint = heartTint,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clickable { onFavoriteClick() }
+                    )
 
-                Icon(
-                    imageVector = Icons.Outlined.ChatBubbleOutline,
-                    contentDescription = "Message Seller",
-                    tint = Color.Black,
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clickable { onMessageClick() }
-                )
+                    Icon(
+                        imageVector = Icons.Outlined.ChatBubbleOutline,
+                        contentDescription = "Message Seller",
+                        tint = Color.Black,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clickable { onMessageClick() }
+                    )
+                }
             }
         }
     }

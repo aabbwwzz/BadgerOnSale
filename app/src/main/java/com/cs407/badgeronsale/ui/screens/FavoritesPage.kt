@@ -40,6 +40,8 @@ fun FavoritesPage(
     // track which item is about to be deleted
     var showDialog by remember { mutableStateOf(false) }
     var itemToRemove by remember { mutableStateOf<Listing?>(null) }
+    // Track items that are being deleted to prevent them from reappearing
+    var pendingDeletions by remember { mutableStateOf<Set<String>>(emptySet()) }
 
     Column(
         modifier = Modifier
@@ -81,14 +83,17 @@ fun FavoritesPage(
                 )
             }
         } else {
-            // Favorites Grid
+            // Favorites Grid - filter out pending deletions for immediate UI update
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(favorites.filter { it.id.isNotEmpty() }, key = { it.id }) { item ->
+                items(
+                    favorites.filter { it.id.isNotEmpty() && !pendingDeletions.contains(it.id) }, 
+                    key = { it.id }
+                ) { item ->
                     FavoriteItem(
                         listing = item,
                         onDeleteClick = {
@@ -109,8 +114,15 @@ fun FavoritesPage(
                 text = { Text("Are you sure you want to remove this item from favorites?") },
                 confirmButton = {
                     TextButton(onClick = {
-                        itemToRemove?.let { onRemoveClick(it) }
-                        showDialog = false
+                        itemToRemove?.let { listing ->
+                            // Immediately add to pending deletions for optimistic UI update
+                            pendingDeletions = pendingDeletions + listing.id
+                            // Trigger removal
+                            onRemoveClick(listing)
+                            // Reset dialog state
+                            itemToRemove = null
+                            showDialog = false
+                        }
                     }) {
                         Text("Remove", color = Color.Red)
                     }
