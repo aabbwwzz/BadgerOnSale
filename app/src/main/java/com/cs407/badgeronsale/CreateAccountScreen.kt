@@ -24,6 +24,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 // Match the SignInScreen palette
 private val BadgerRed = Color(0xFFC5050C)
@@ -47,7 +49,10 @@ fun CreateAccountScreen(
     var generalError by remember { mutableStateOf<String?>(null) }
 
     var passwordVisible by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
+    val coroutineScope = rememberCoroutineScope()
+
 
     Box(
         modifier = Modifier
@@ -286,15 +291,73 @@ fun CreateAccountScreen(
                             if (password.isBlank()) {
                                 passwordError = "Password cannot be empty."
                                 hasError = true
+                            } else if (password.length < 6) {
+                                passwordError = "Password must be at least 6 characters."
+                                hasError = true
                             }
                             if (phone.isBlank()) {
                                 phoneError = "Phone number cannot be empty."
                                 hasError = true
                             }
 
-                            if (!hasError) {
-                                // Milestone 1: pretend success (hook up Firebase later)
-                                onAccountCreated()
+                            if (!hasError && !isLoading) {
+                                isLoading = true
+                                generalError = null
+                                coroutineScope.launch {
+                                    try {
+                                        // Create Firebase account
+                                        val authResult = FirebaseAuthHelper.createAccount(email, password)
+                                        
+                                        if (authResult.isSuccess) {
+                                            val user = authResult.getOrNull()!!
+                                            // Small delay to ensure auth token is available for Firestore
+                                            delay(100)
+                                            
+                                            // Save user profile to Firestore
+                                            val profileResult = FirebaseAuthHelper.saveUserProfile(
+                                                userId = user.uid,
+                                                name = name,
+                                                email = email,
+                                                phone = phone
+                                            )
+                                            
+                                            if (profileResult.isSuccess) {
+                                                isLoading = false
+                                                onAccountCreated()
+                                            } else {
+                                                isLoading = false
+                                                val exception = profileResult.exceptionOrNull()
+                                                val errorMessage = exception?.message ?: "Unknown error"
+                                                generalError = when {
+                                                    errorMessage.contains("PERMISSION_DENIED") == true ->
+                                                        "Permission denied. Please deploy Firestore security rules in Firebase Console."
+                                                    errorMessage.contains("permission") == true ->
+                                                        "Permission error: $errorMessage. Check Firestore rules."
+                                                    else -> "Account created but failed to save profile: $errorMessage"
+                                                }
+                                            }
+                                        } else {
+                                            isLoading = false
+                                            val exception = authResult.exceptionOrNull()
+                                            generalError = when {
+                                                exception?.message?.contains("email-already-in-use") == true ->
+                                                    "This email is already registered. Please sign in instead."
+                                                exception?.message?.contains("weak-password") == true ->
+                                                    "Password is too weak. Please use a stronger password."
+                                                exception?.message?.contains("invalid-email") == true ->
+                                                    "Invalid email address."
+                                                exception?.message?.contains("network") == true ->
+                                                    "Network error. Please check your connection."
+                                                exception?.message?.contains("CONFIGURATION_NOT_FOUND") == true ->
+                                                    "Firebase Authentication is not enabled. Please enable it in Firebase Console."
+                                                else -> "Failed to create account: ${exception?.message ?: "Unknown error"}"
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        isLoading = false
+                                        generalError = "Failed to create account: ${e.message ?: "Unknown error"}"
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier
@@ -304,9 +367,18 @@ fun CreateAccountScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = BadgerRed,
                             contentColor = Color.White
-                        )
+                        ),
+                        enabled = !isLoading
                     ) {
-                        Text("Create account", style = MaterialTheme.typography.titleMedium)
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Create account", style = MaterialTheme.typography.titleMedium)
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))

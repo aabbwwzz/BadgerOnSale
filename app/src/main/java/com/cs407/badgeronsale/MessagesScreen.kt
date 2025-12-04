@@ -23,11 +23,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.collectLatest
+import com.cs407.badgeronsale.repository.MessagesRepository
+import com.cs407.badgeronsale.repository.Conversation
+import com.cs407.badgeronsale.FirebaseAuthHelper
 
 data class DMPreview(
     val id: String,
     val name: String,
-    @DrawableRes val avatarRes: Int
+    @DrawableRes val avatarRes: Int = R.drawable.avatar,
+    val profilePicURL: String? = null
 )
 
 data class ChatMessage(val id: String, val fromMe: Boolean, val text: String)
@@ -90,8 +100,23 @@ object MockData {
 @Composable
 fun MessagesScreen(
     onHomeClick: () -> Unit = {},
-    onOpenChat: (dmId: String) -> Unit = {}
+    onOpenChat: (userId: String, listingId: String?) -> Unit
 ) {
+    var conversations by remember { mutableStateOf<List<com.cs407.badgeronsale.repository.Conversation>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+
+    // Load conversations from Firestore
+    LaunchedEffect(Unit) {
+        if (FirebaseAuthHelper.isSignedIn()) {
+            MessagesRepository.getConversations().collectLatest { convs ->
+                conversations = convs
+                isLoading = false
+            }
+        } else {
+            isLoading = false
+        }
+    }
+
     Scaffold(
         topBar = {
             Row(
@@ -106,13 +131,44 @@ fun MessagesScreen(
             }
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.padding(padding).fillMaxSize().background(Color(0xFFF1F1F1)),
-            contentPadding = PaddingValues(vertical = 8.dp)
-        ) {
-            items(MockData.dms) { dm ->
-                val preview = MockData.getPreviewLine(dm.id)
-                DMRow(dm, preview) { onOpenChat(dm.id) }
+        if (isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator()
+            }
+        } else if (conversations.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "No messages yet",
+                    color = Color.Gray,
+                    fontSize = 16.sp
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.padding(padding).fillMaxSize().background(Color(0xFFF1F1F1)),
+                contentPadding = PaddingValues(vertical = 8.dp)
+            ) {
+                items(conversations, key = { it.otherUserID }) { conversation ->
+                    val dm = DMPreview(
+                        id = conversation.otherUserID,
+                        name = conversation.otherUserName,
+                        profilePicURL = conversation.otherUserProfilePicURL
+                    )
+                    val preview = conversation.lastMessage ?: "Tap to open conversation"
+                    DMRow(dm, preview) { 
+                        onOpenChat(conversation.otherUserID, conversation.listingID) 
+                    }
+                }
             }
         }
     }
@@ -128,12 +184,24 @@ private fun DMRow(dm: DMPreview, preview: String, onClick: () -> Unit) {
             .fillMaxWidth().clickable { onClick() }
     ) {
         Row(Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Image(
-                painter = painterResource(dm.avatarRes),
-                contentDescription = "${dm.name} avatar",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(54.dp).clip(CircleShape)
-            )
+            // Show profile picture from URL if available, otherwise use drawable
+            if (dm.profilePicURL != null && dm.profilePicURL.isNotEmpty()) {
+                // TODO: Load image from URL using Coil or similar library
+                // For now, fallback to drawable
+                Image(
+                    painter = painterResource(dm.avatarRes),
+                    contentDescription = "${dm.name} avatar",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(54.dp).clip(CircleShape)
+                )
+            } else {
+                Image(
+                    painter = painterResource(dm.avatarRes),
+                    contentDescription = "${dm.name} avatar",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.size(54.dp).clip(CircleShape)
+                )
+            }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(dm.name, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp,

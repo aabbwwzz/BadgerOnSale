@@ -21,11 +21,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import com.cs407.badgeronsale.repository.ListingRepository
+import com.cs407.badgeronsale.FirebaseAuthHelper
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 // UW-Madison red
 private val BadgerRed = Color(0xFFC5050C)
@@ -33,27 +40,58 @@ private val BadgerRed = Color(0xFFC5050C)
 data class UserListing(
     val id: String,
     val title: String,
-    @DrawableRes val imageRes: Int
+    val price: String = "",  // Price for seller profile view
+    @DrawableRes val imageRes: Int? = null,  // Optional drawable resource
+    val imageUrl: String? = null  // Optional Firebase Storage URL
 )
 
 @Composable
 fun UserProfileScreen(
     userName: String = "Jouhara Ali",
-    @DrawableRes avatarRes: Int = R.drawable.avatar, // from Joe’s assets
+    @DrawableRes avatarRes: Int = R.drawable.avatar,
+    isOwnProfile: Boolean = true,  // True if viewing own profile, false if viewing seller profile
+    rating: Double = 5.0,  // Seller rating (for seller profile view)
+    userId: String? = null,  // User ID to load listings for (if null, uses current user)
     onBack: () -> Unit = {},
     onHome: () -> Unit = {},
-    onEditAccount: () -> Unit = {},                 // <-- NEW callback for the button
-    onListingDeleted: (UserListing) -> Unit = {}    // for future hookup
+    onEditAccount: () -> Unit = {},
+    onListingDeleted: (UserListing) -> Unit = {}
 ) {
-    // Hardcoded sample listings (replace with real data later)
-    var listings by remember {
-        mutableStateOf(
-            listOf(
-                UserListing("1", "Airpods", R.drawable.earphone),
-                UserListing("2", "Shoes",   R.drawable.apple), // placeholder art
-                UserListing("3", "TV",      R.drawable.tv)
-            )
-        )
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    // Load real listings from Firestore in real-time
+    var listings by remember { mutableStateOf<List<UserListing>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
+    
+    // Determine which user's listings to load
+    val targetUserId = userId ?: FirebaseAuthHelper.getCurrentUser()?.uid
+    
+    // Load listings in real-time
+    LaunchedEffect(targetUserId) {
+        if (targetUserId != null) {
+            try {
+                ListingRepository.getListingsByUserIDRealtime(targetUserId).collectLatest { listingList ->
+                    // Convert Listing to UserListing format
+                    listings = listingList.map { listing ->
+                        UserListing(
+                            id = listing.id,
+                            title = listing.title,
+                            price = listing.price,
+                            imageRes = listing.imageRes,
+                            imageUrl = listing.imageUrl
+                        )
+                    }
+                    isLoading = false
+                }
+            } catch (e: Exception) {
+                println("Error loading user listings: ${e.message}")
+                isLoading = false
+            }
+        } else {
+            listings = emptyList()
+            isLoading = false
+        }
     }
 
     Scaffold(
@@ -107,47 +145,112 @@ fun UserProfileScreen(
                             fontSize = 24.sp
                         )
                         Text(
-                            text = "Your Profile",
+                            text = if (isOwnProfile) "Your Profile" else "Seller Profile",
                             color = Color(0xFF666666),
                             fontSize = 14.sp
                         )
 
-                        // ---- NEW: Edit Account button ----
-                        Spacer(Modifier.height(10.dp))
-                        Button(
-                            onClick = onEditAccount,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(44.dp),
-                            shape = RoundedCornerShape(24.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = BadgerRed,
-                                contentColor = Color.White
+                        Spacer(Modifier.height(12.dp))
+
+                        // Listings count (matching wireframe - only listings, no ratings for own profile)
+                        if (isOwnProfile) {
+                            // For own profile: just show listings count (matching wireframe)
+                            Text(
+                                text = listings.size.toString(),
+                                fontWeight = FontWeight.Black,
+                                fontSize = 28.sp
                             )
-                        ) {
-                            Text("Edit Account", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                text = "listings",
+                                color = Color(0xFF666666),
+                                fontSize = 14.sp
+                            )
+                        } else {
+                            // For seller profile: show ratings and listings side by side
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                // Ratings (left side)
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = rating.toString(),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 28.sp
+                                    )
+                                    Text(
+                                        text = "RATINGS",
+                                        color = Color(0xFF666666),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                                
+                                // Listings count (right side)
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = listings.size.toString(),
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 28.sp
+                                    )
+                                    Text(
+                                        text = "listings",
+                                        color = Color(0xFF666666),
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
                         }
-                        // ----------------------------------
-
-                        Spacer(Modifier.height(14.dp))
-
-                        Text(
-                            text = listings.size.toString(),
-                            fontWeight = FontWeight.Black,
-                            fontSize = 28.sp
-                        )
-                        Text(text = "listings", color = Color(0xFF666666))
                     }
                 }
             }
 
-            // Listing rows
+            // Loading indicator
+            if (isLoading) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+            }
+            
+            // Listing rows - load actual listing data to get imageUrl
             items(listings, key = { it.id }) { item ->
+                var listingData by remember(item.id) { mutableStateOf<com.cs407.badgeronsale.Listing?>(null) }
+                
+                // Load full listing data to get imageUrl
+                LaunchedEffect(item.id) {
+                    coroutineScope.launch {
+                        listingData = ListingRepository.getListingById(item.id)
+                    }
+                }
+                
                 ListingRow(
                     listing = item,
+                    showPrice = !isOwnProfile,  // Show price only for seller profile
+                    imageUrl = item.imageUrl ?: listingData?.imageUrl,
                     onDelete = {
-                        listings = listings.filterNot { it.id == item.id }
-                        onListingDeleted(item)
+                        if (isOwnProfile) {
+                            // Delete from Firestore
+                            val currentUser = FirebaseAuthHelper.getCurrentUser()
+                            if (currentUser != null) {
+                                coroutineScope.launch {
+                                    val result = ListingRepository.deleteListing(item.id, currentUser.uid)
+                                    if (result.isSuccess) {
+                                        onListingDeleted(item)
+                                    } else {
+                                        println("Failed to delete listing: ${result.exceptionOrNull()?.message}")
+                                    }
+                                }
+                            }
+                        } else {
+                            // For seller profiles, just call the callback
+                            onListingDeleted(item)
+                        }
                     }
                 )
             }
@@ -160,10 +263,14 @@ fun UserProfileScreen(
 @Composable
 private fun ListingRow(
     listing: UserListing,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    showPrice: Boolean = false,  // Only show price for seller profile view
+    imageUrl: String? = null  // Firebase Storage image URL
 ) {
+    val context = LocalContext.current
+    
     Surface(
-        color = Color(0xFFE9E9E9),
+        color = Color(0xFFE9E9E9),  // Light grey background matching wireframe
         shape = RoundedCornerShape(28.dp),
         tonalElevation = 1.dp,
         modifier = Modifier
@@ -176,17 +283,50 @@ private fun ListingRow(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Image(
-                painter = painterResource(listing.imageRes),
-                contentDescription = listing.title,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-            )
+            // Image on the left - support both drawable and Firebase Storage images
+            when {
+                imageUrl != null -> {
+                    Image(
+                        painter = rememberAsyncImagePainter(
+                            ImageRequest.Builder(context)
+                                .data(imageUrl)
+                                .error(R.drawable.avatar)
+                                .build()
+                        ),
+                        contentDescription = listing.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+                listing.imageRes != null -> {
+                    Image(
+                        painter = painterResource(listing.imageRes),
+                        contentDescription = listing.title,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+                else -> {
+                    // Placeholder
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFFD0D0D0)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No Image", fontSize = 8.sp, color = Color.Gray)
+                    }
+                }
+            }
 
             Spacer(Modifier.width(14.dp))
 
+            // Title in the middle
             Text(
                 text = listing.title,
                 fontSize = 18.sp,
@@ -196,7 +336,19 @@ private fun ListingRow(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            
+            // Price (only for seller profile view, matching wireframe)
+            if (showPrice && listing.price.isNotEmpty()) {
+                Text(
+                    text = listing.price,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF222222),
+                    modifier = Modifier.padding(end = 8.dp)
+                )
+            }
 
+            // Trash icon on the right (matching wireframe)
             Icon(
                 imageVector = Icons.Filled.Delete,
                 contentDescription = "Delete",

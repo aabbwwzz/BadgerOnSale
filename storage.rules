@@ -1,0 +1,35 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Listing images - stored under listings/{userId}/{imageName}
+    match /listings/{userId}/{imageName} {
+      // Anyone authenticated can read listing images
+      allow read: if isAuthenticated();
+      
+      // Users can upload images to their own folder
+      allow write: if isAuthenticated() && 
+                     request.auth.uid == userId &&
+                     request.resource.size < 5 * 1024 * 1024 && // 5MB limit
+                     request.resource.contentType.matches('image/.*');
+    }
+    
+    // User profile pictures - stored under profiles/{userId}/{imageName}
+    match /profiles/{userId}/{imageName} {
+      // Anyone authenticated can read profile pictures
+      allow read: if isAuthenticated();
+      
+      // Users can only upload their own profile picture
+      allow write: if isAuthenticated() && 
+                     request.auth.uid == userId &&
+                     request.resource.size < 2 * 1024 * 1024 && // 2MB limit
+                     request.resource.contentType.matches('image/.*');
+    }
+  }
+}
+

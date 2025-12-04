@@ -22,6 +22,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.collectLatest
+import com.cs407.badgeronsale.repository.ListingRepository
 
 enum class Category { TICKETS, FURNITURE, DEVICES, OTHER }
 
@@ -31,15 +34,20 @@ data class Listing(
     val price: String,
     val distance: String,
     val timeAgo: String,
-    val imageRes: Int,
-    val category: Category
+    val imageRes: Int? = null,  // For local drawable resources
+    val category: Category,
+    val imageUrl: String? = null,  // For Firebase Storage URLs
+    val sellerId: String? = null,
+    val sellerName: String? = null,
+    val description: String = "",
+    val createdAt: java.util.Date? = null
 )
 
+// Fallback mock listings (used if Firestore is empty or fails)
 private val mockListings = listOf(
     Listing("1","Ticket", "$60","0.2 mi","2 day ago",  R.drawable.simple_ticket,  Category.TICKETS),
     Listing("2","Jacket", "$75","0.1 mi","1 hour ago", R.drawable.simple_jacket,  Category.OTHER),
-    Listing("3","Table",  "$35","0.1 mi","1 day ago",  R.drawable.simple_backpack
-        ,   Category.FURNITURE),
+    Listing("3","Table",  "$35","0.1 mi","1 day ago",  R.drawable.simple_backpack, Category.FURNITURE),
     Listing("4","Earbuds","$35","0.1 mi","2 hour ago", R.drawable.simple_earbods, Category.DEVICES),
     Listing("5","Sofa",   "$90","1.2 mi","4 days ago", R.drawable.simple_sofa,    Category.FURNITURE),
 )
@@ -56,14 +64,30 @@ fun HomeScreen(
     var query by remember { mutableStateOf("") }
     val chipLabels = listOf("All", "Tickets", "Furniture", "Devices")
     var selected by remember { mutableStateOf("All") }
+    var listings by remember { mutableStateOf<List<Listing>>(mockListings) }
+    var isLoading by remember { mutableStateOf(true) }
 
-    val filteredListings by remember(selected, query) {
+    // Load listings from Firestore
+    LaunchedEffect(Unit) {
+        ListingRepository.getAllListings().collectLatest { firestoreListings ->
+            listings = if (firestoreListings.isEmpty()) {
+                // Fallback to mock data if Firestore is empty
+                mockListings
+            } else {
+                firestoreListings
+            }
+            isLoading = false
+        }
+    }
+
+    // Filter listings based on category and search query
+    val filteredListings by remember(selected, query, listings) {
         derivedStateOf {
             val base = when (selected) {
-                "Tickets"   -> mockListings.filter { it.category == Category.TICKETS }
-                "Furniture" -> mockListings.filter { it.category == Category.FURNITURE }
-                "Devices"   -> mockListings.filter { it.category == Category.DEVICES }
-                else        -> mockListings
+                "Tickets"   -> listings.filter { it.category == Category.TICKETS }
+                "Furniture" -> listings.filter { it.category == Category.FURNITURE }
+                "Devices"   -> listings.filter { it.category == Category.DEVICES }
+                else        -> listings
             }
             if (query.isBlank()) base else base.filter { it.title.contains(query, true) }
         }
@@ -72,24 +96,38 @@ fun HomeScreen(
     Column(
         Modifier.fillMaxSize().background(Color(0xFFF6F6F6))
     ) {
+        // Top Navigation Bar: Menu (left), Search (center), Messages (right)
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onMenuClick) { Icon(Icons.Filled.Menu, null) }
-            Spacer(Modifier.weight(1f))
-            IconButton(onClick = onMessagesClick) { Icon(Icons.Outlined.Chat, null) }
+            // Hamburger menu icon on the left
+            IconButton(onClick = onMenuClick) { 
+                Icon(Icons.Filled.Menu, contentDescription = "Menu", tint = Color.Black) 
+            }
+            
+            // Search bar in the center
+            Spacer(Modifier.width(8.dp))
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it; onSearch(it) },
+                placeholder = { Text("Search") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Search", tint = Color.Gray) },
+                singleLine = true,
+                shape = RoundedCornerShape(28.dp),
+                modifier = Modifier.weight(1f).height(48.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = Color.White
+                )
+            )
+            
+            // Message icon on the right
+            Spacer(Modifier.width(8.dp))
+            IconButton(onClick = onMessagesClick) { 
+                Icon(Icons.Outlined.Chat, contentDescription = "Messages", tint = Color.Black) 
+            }
         }
-
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it; onSearch(it) },
-            placeholder = { Text("Search") },
-            leadingIcon = { Icon(Icons.Filled.Search, null) },
-            singleLine = true,
-            shape = RoundedCornerShape(28.dp),
-            modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(56.dp)
-        )
 
         Spacer(Modifier.height(12.dp))
 
@@ -127,12 +165,27 @@ private fun ListingCard(item: Listing, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp)
     ) {
         Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Image(
-                painter = painterResource(item.imageRes),
-                contentDescription = item.title,
-                contentScale = ContentScale.Fit,
-                modifier = Modifier.height(110.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))
-            )
+            // Show image from drawable resource or placeholder if imageRes is null
+            if (item.imageRes != null) {
+                Image(
+                    painter = painterResource(item.imageRes),
+                    contentDescription = item.title,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier.height(110.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                )
+            } else {
+                // Placeholder for Firebase Storage images (TODO: implement image loading from URL)
+                Box(
+                    modifier = Modifier
+                        .height(110.dp)
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFFE0E0E0)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No Image", color = Color.Gray, fontSize = 12.sp)
+                }
+            }
             Spacer(Modifier.height(8.dp))
             Text(item.price, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text(item.distance, color = Color(0xFF555555), fontSize = 14.sp)

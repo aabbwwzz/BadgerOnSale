@@ -20,10 +20,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import com.cs407.badgeronsale.Listing
 import com.cs407.badgeronsale.R
 
@@ -85,7 +88,7 @@ fun FavoritesPage(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(favorites, key = { it.id }) { item ->
+                items(favorites.filter { it.id.isNotEmpty() }, key = { it.id }) { item ->
                     FavoriteItem(
                         listing = item,
                         onDeleteClick = {
@@ -128,40 +131,69 @@ fun FavoriteItem(
     onDeleteClick: () -> Unit,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
+    
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .background(Color(0xFFE8E8E8), shape = RoundedCornerShape(24.dp))
             .padding(12.dp)
-            .clickable { onClick() }
     ) {
-        Image(
-            painter = painterResource(id = listing.imageRes),
-            contentDescription = listing.title,
-            modifier = Modifier
-                .size(140.dp)
-                .padding(bottom = 8.dp),
-            contentScale = ContentScale.Fit
-        )
-        Text(
-            text = listing.title,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = Color.Black,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
-        Text(
-            text = listing.price,
-            fontSize = 14.sp,
-            color = Color.DarkGray
-        )
-        Spacer(modifier = Modifier.height(4.dp))
+        // Image (clickable to view item) - matching wireframe: only image and trash icon
+        Box(
+            modifier = Modifier.clickable { onClick() }
+        ) {
+            when {
+                !listing.imageUrl.isNullOrEmpty() -> {
+                    Image(
+                        painter = rememberAsyncImagePainter(
+                            ImageRequest.Builder(context)
+                                .data(listing.imageUrl)
+                                .error(R.drawable.avatar) // Fallback image
+                                .build()
+                        ),
+                        contentDescription = listing.title,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                            .padding(bottom = 8.dp),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                listing.imageRes != null -> {
+                    Image(
+                        painter = painterResource(id = listing.imageRes),
+                        contentDescription = listing.title,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                            .padding(bottom = 8.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                }
+                else -> {
+                    // Placeholder for no image
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(140.dp)
+                            .padding(bottom = 8.dp)
+                            .background(Color(0xFFD0D0D0), shape = RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No Image", color = Color.Gray, fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+        
+        // Trash icon below image (matching wireframe exactly - only image and trash icon visible)
         Icon(
             imageVector = Icons.Default.Delete,
             contentDescription = "Delete",
             tint = Color.Black,
             modifier = Modifier
-                .size(28.dp)
+                .size(24.dp)
                 .clickable { onDeleteClick() }
         )
     }

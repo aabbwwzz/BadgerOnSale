@@ -11,8 +11,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -85,11 +87,14 @@ fun EditProfileScreen(
                             contentDescription = "Back"
                         )
                     }
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        "Edit Profile",
-                        style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                    )
+                    Spacer(Modifier.weight(1f))
+                    // Home icon on the right (matching wireframe)
+                    IconButton(onClick = onCancel) {
+                        Icon(
+                            imageVector = Icons.Default.Home,
+                            contentDescription = "Home"
+                        )
+                    }
                 }
             }
         }
@@ -227,10 +232,11 @@ fun EditProfileScreen(
                     onClick = onCancel,
                     modifier = Modifier
                         .weight(1f)
-                        .height(52.dp),
+                        .height(52.dp)
+                        .border(1.dp, Color.Black, RoundedCornerShape(26.dp)),
                     shape = RoundedCornerShape(26.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = CancelBg,
+                        containerColor = CancelBg,  // Light beige/off-white
                         contentColor = Color.Black
                     )
                 ) {

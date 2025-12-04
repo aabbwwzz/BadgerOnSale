@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is the owner
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Users collection
+    match /users/{userId} {
+      // Users can read any user profile
+      allow read: if isAuthenticated();
+      
+      // Users can only create/update their own profile
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+    
+    // Listings collection
+    match /listings/{listingId} {
+      // Anyone authenticated can read listings
+      allow read: if isAuthenticated();
+      
+      // Only the owner can create/update/delete their listings
+      allow create: if isAuthenticated() && 
+                      request.resource.data.UserID == request.auth.uid;
+      allow update: if isAuthenticated() && 
+                      resource.data.UserID == request.auth.uid;
+      allow delete: if isAuthenticated() && 
+                      resource.data.UserID == request.auth.uid;
+    }
+    
+    // Favorites collection
+    match /favorites/{favoriteId} {
+      // Users can only read their own favorites
+      allow read: if isAuthenticated() && 
+                    resource.data.UserID == request.auth.uid;
+      
+      // Users can only create favorites for themselves
+      allow create: if isAuthenticated() && 
+                      request.resource.data.UserID == request.auth.uid;
+      
+      // Users can only delete their own favorites
+      allow delete: if isAuthenticated() && 
+                      resource.data.UserID == request.auth.uid;
+    }
+    
+    // Messages collection
+    match /messages/{messageId} {
+      // Users can only read messages where they are sender or receiver
+      allow read: if isAuthenticated() && 
+                    (resource.data.SenderID == request.auth.uid || 
+                     resource.data.ReceiverID == request.auth.uid);
+      
+      // Users can only create messages where they are the sender
+      allow create: if isAuthenticated() && 
+                      request.resource.data.SenderID == request.auth.uid;
+      
+      // Users cannot update or delete messages (immutable)
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}
+

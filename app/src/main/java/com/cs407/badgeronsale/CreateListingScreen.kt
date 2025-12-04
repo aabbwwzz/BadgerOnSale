@@ -1,5 +1,9 @@
 package com.cs407.badgeronsale
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,12 +20,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import kotlinx.coroutines.launch
+import com.cs407.badgeronsale.repository.ListingRepository
+import com.cs407.badgeronsale.Category
+import com.cs407.badgeronsale.FirebaseAuthHelper
+import java.util.Date
 
 // Same color style as other screens
 private val BadgerRed = Color(0xFFC5050C)
@@ -41,8 +54,19 @@ fun CreateListingScreen(
     var priceError by remember { mutableStateOf<String?>(null) }
     var detailsError by remember { mutableStateOf<String?>(null) }
     var generalError by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
 
     val focusManager = LocalFocusManager.current
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+
+    // Image picker launcher
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedImageUri = uri
+    }
 
     Box(
         modifier = Modifier
@@ -98,23 +122,36 @@ fun CreateListingScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .clickable {
-                            // TODO: hook up image picker later
+                            imagePickerLauncher.launch("image/*")
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "+",
-                            style = MaterialTheme.typography.headlineLarge,
-                            color = Color.Black
+                    if (selectedImageUri != null) {
+                        Image(
+                            painter = rememberAsyncImagePainter(
+                                ImageRequest.Builder(context)
+                                    .data(selectedImageUri)
+                                    .build()
+                            ),
+                            contentDescription = "Selected image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
                         )
-                        Text(
-                            text = "Add photo",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Black
-                        )
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "+",
+                                style = MaterialTheme.typography.headlineLarge,
+                                color = Color.Black
+                            )
+                            Text(
+                                text = "Add photo",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Black
+                            )
+                        }
                     }
                 }
             }
@@ -306,10 +343,68 @@ fun CreateListingScreen(
                                 hasError = true
                             }
 
-                            if (!hasError) {
-                                // Later you'll actually create the listing in Firestore.
-                                // For now, just pretend it succeeded and go back to Home.
-                                onListingCreated()
+                            if (!hasError && !isLoading) {
+                                isLoading = true
+                                generalError = null
+                                
+                                coroutineScope.launch {
+                                    val currentUser = FirebaseAuthHelper.getCurrentUser()
+                                    if (currentUser == null) {
+                                        isLoading = false
+                                        generalError = "You must be signed in to create a listing."
+                                        return@launch
+                                    }
+                                    
+                                    try {
+                                        // Get user profile for seller name (using schema field "Name")
+                                        val userProfileResult = FirebaseAuthHelper.getUserProfile(currentUser.uid)
+                                        val sellerName = userProfileResult.getOrNull()?.get("Name") as? String 
+                                            ?: userProfileResult.getOrNull()?.get("name") as? String // Fallback for old data
+                                            ?: currentUser.email?.substringBefore("@") ?: "Seller"
+                                        
+                                        // Upload image if selected
+                                        var imageUrl: String? = null
+                                        if (selectedImageUri != null) {
+                                            val uploadResult = FirebaseStorageHelper.uploadListingImage(selectedImageUri!!)
+                                            if (uploadResult.isSuccess) {
+                                                imageUrl = uploadResult.getOrNull()
+                                            } else {
+                                                isLoading = false
+                                                generalError = "Failed to upload image: ${uploadResult.exceptionOrNull()?.message}"
+                                                return@launch
+                                            }
+                                        }
+                                        
+                                        // Create listing object
+                                        val listing = Listing(
+                                            id = "", // Will be set by Firestore
+                                            title = title.trim(),
+                                            price = price.trim(),
+                                            distance = "0.0 mi", // TODO: Add location services
+                                            timeAgo = "Just now",
+                                            imageRes = null,
+                                            imageUrl = imageUrl,
+                                            category = Category.OTHER, // TODO: Add category selection
+                                            sellerId = currentUser.uid,
+                                            sellerName = sellerName,
+                                            description = details.trim(),
+                                            createdAt = Date()
+                                        )
+                                        
+                                        // Save to Firestore
+                                        val result = ListingRepository.createListing(listing)
+                                        isLoading = false
+                                        
+                                        if (result.isSuccess) {
+                                            onListingCreated()
+                                        } else {
+                                            generalError = "Failed to create listing: ${result.exceptionOrNull()?.message ?: "Unknown error"}"
+                                        }
+                                    } catch (e: Exception) {
+                                        isLoading = false
+                                        generalError = "Failed to create listing: ${e.message ?: "Unknown error"}"
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier
@@ -319,12 +414,21 @@ fun CreateListingScreen(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = BadgerRed,
                             contentColor = Color.White
-                        )
+                        ),
+                        enabled = !isLoading
                     ) {
-                        Text(
-                            text = "Create Listing",
-                            style = MaterialTheme.typography.titleMedium
-                        )
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(
+                                text = "Create Listing",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                        }
                     }
                 }
             }

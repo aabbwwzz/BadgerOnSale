@@ -13,6 +13,14 @@ import com.cs407.badgeronsale.ui.screens.FavoritesPage
 import com.cs407.badgeronsale.ui.screens.ItemDescriptionPage
 import com.cs407.badgeronsale.ui.screens.MenuPage
 import com.cs407.badgeronsale.ui.theme.BadgerOnSaleTheme
+import com.cs407.badgeronsale.repository.FavoritesRepository
+import com.cs407.badgeronsale.repository.MessagesRepository
+import com.cs407.badgeronsale.FirebaseAuthHelper
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.rememberCoroutineScope
 
 // All screens we can navigate to
 private enum class AppScreen {
@@ -22,6 +30,7 @@ private enum class AppScreen {
     MESSAGES,
     CHAT_DETAIL,
     USER_PROFILE,
+    SELLER_PROFILE,  // For viewing seller profile from chat
     EDIT_PROFILE,
     MENU,
     FAVORITES,
@@ -32,6 +41,7 @@ private enum class AppScreen {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
         enableEdgeToEdge()
 
         setContent {
@@ -49,32 +59,130 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun AppNavigator() {
+    val coroutineScope = rememberCoroutineScope()
 
-    // Current screen user is on
-    var current by remember { mutableStateOf(AppScreen.SIGN_IN) }
+    // Check if user is already signed in
+    var current by remember { 
+        mutableStateOf(
+            if (FirebaseAuthHelper.isSignedIn()) AppScreen.HOME else AppScreen.SIGN_IN
+        )
+    }
 
     // Where we came from when opening an item (Home or Favorites)
     var lastListScreen by remember { mutableStateOf(AppScreen.HOME) }
 
     // Arguments for screens
     var selectedDmId by remember { mutableStateOf("1") }
+    var selectedListingId by remember { mutableStateOf<String?>(null) }
     var selectedListing by remember { mutableStateOf<Listing?>(null) }
+    var selectedSellerId by remember { mutableStateOf<String?>(null) }
+    var selectedSellerInfo by remember { mutableStateOf<Map<String, Any>?>(null) }
 
-    // Shared favorites across the app
+    // Shared favorites across the app - loaded from Firestore
     var favorites by remember { mutableStateOf(listOf<Listing>()) }
+    
+    // Load favorites from Firestore when user is signed in - real-time updates
+    LaunchedEffect(FirebaseAuthHelper.isSignedIn()) {
+        if (FirebaseAuthHelper.isSignedIn()) {
+            try {
+                // Clean up any duplicate favorites on first load
+                coroutineScope.launch {
+                    FavoritesRepository.cleanupDuplicateFavorites().onSuccess { count ->
+                        if (count > 0) {
+                            println("Cleaned up $count duplicate favorites")
+                        }
+                    }
+                }
+                
+                FavoritesRepository.getUserFavorites().collectLatest { favoriteListings ->
+                    favorites = favoriteListings
+                }
+            } catch (e: Exception) {
+                println("Error collecting favorites: ${e.message}")
+                e.printStackTrace()
+                favorites = emptyList()
+            }
+        } else {
+            favorites = emptyList()
+        }
+    }
 
-    // Example user profile (temporary)
+    // User profile - loaded from Firestore, unique per user
     var userProfile by remember {
         mutableStateOf(
             UserProfile(
-                name = "Jouhara Ali",
-                email = "user@wisc.edu",
-                phone = "(608) 555-1234",
-                graduationYear = "2026",
-                address = "123 University Ave",
+                name = "",
+                email = "",
+                phone = "",
+                graduationYear = "",
+                address = "",
                 avatarRes = R.drawable.avatar
             )
         )
+    }
+    
+    // Load user profile from Firestore when user signs in - ensures unique profile per user
+    LaunchedEffect(FirebaseAuthHelper.isSignedIn()) {
+        if (FirebaseAuthHelper.isSignedIn()) {
+            val currentUser = FirebaseAuthHelper.getCurrentUser()
+            if (currentUser != null) {
+                coroutineScope.launch {
+                    try {
+                        val profileResult = FirebaseAuthHelper.getUserProfile(currentUser.uid)
+                        if (profileResult.isSuccess) {
+                            val profileData = profileResult.getOrNull()!!
+                            // Map Firestore data to UserProfile
+                            userProfile = UserProfile(
+                                name = profileData["Name"] as? String ?: currentUser.email?.substringBefore("@") ?: "User",
+                                email = profileData["Email"] as? String ?: currentUser.email ?: "",
+                                phone = profileData["phone"] as? String ?: "",
+                                graduationYear = profileData["graduationYear"] as? String ?: "",
+                                address = profileData["address"] as? String ?: "",
+                                avatarRes = R.drawable.avatar // Default avatar, can be updated later with ProfilePicURL
+                            )
+                        } else {
+                            // Profile doesn't exist - create a default one to ensure uniqueness
+                            val email = currentUser.email ?: ""
+                            val defaultName = email.substringBefore("@")
+                            val createResult = FirebaseAuthHelper.saveUserProfile(
+                                userId = currentUser.uid,
+                                name = defaultName,
+                                email = email,
+                                phone = ""
+                            )
+                            if (createResult.isSuccess) {
+                                // Reload the profile
+                                val reloadResult = FirebaseAuthHelper.getUserProfile(currentUser.uid)
+                                if (reloadResult.isSuccess) {
+                                    val profileData = reloadResult.getOrNull()!!
+                                    userProfile = UserProfile(
+                                        name = profileData["Name"] as? String ?: defaultName,
+                                        email = profileData["Email"] as? String ?: email,
+                                        phone = profileData["phone"] as? String ?: "",
+                                        graduationYear = profileData["graduationYear"] as? String ?: "",
+                                        address = profileData["address"] as? String ?: "",
+                                        avatarRes = R.drawable.avatar
+                                    )
+                                }
+                            }
+                        }
+                    } catch (e: Exception) {
+                        println("Error loading user profile: ${e.message}")
+                        e.printStackTrace()
+                    }
+                }
+            }
+        } else {
+            // Reset profile when signed out
+            userProfile = UserProfile(
+                name = "",
+                email = "",
+                phone = "",
+                graduationYear = "",
+                address = "",
+                avatarRes = R.drawable.avatar
+            )
+        }
     }
 
     when (current) {
@@ -122,8 +230,9 @@ private fun AppNavigator() {
         AppScreen.MESSAGES -> {
             MessagesScreen(
                 onHomeClick = { current = AppScreen.HOME },
-                onOpenChat = { dmId ->
-                    selectedDmId = dmId
+                onOpenChat = { userId, listingId ->
+                    selectedDmId = userId
+                    selectedListingId = listingId
                     current = AppScreen.CHAT_DETAIL
                 }
             )
@@ -134,22 +243,60 @@ private fun AppNavigator() {
         // ----------------------------------------------------------
         AppScreen.CHAT_DETAIL -> {
             ChatDetailScreen(
-                dmId = selectedDmId,
-                onBack = { current = AppScreen.MESSAGES }
+                otherUserId = selectedDmId,
+                listingId = selectedListingId,
+                onBack = { current = AppScreen.MESSAGES },
+                onViewSellerProfile = { sellerId ->
+                    selectedSellerId = sellerId
+                    // Load seller info
+                    coroutineScope.launch {
+                        MessagesRepository.getUserInfo(sellerId).onSuccess {
+                            selectedSellerInfo = it
+                            current = AppScreen.SELLER_PROFILE
+                        }
+                    }
+                }
             )
         }
 
         // ----------------------------------------------------------
-        // USER PROFILE SCREEN
+        // USER PROFILE SCREEN (Own Profile)
         // ----------------------------------------------------------
         AppScreen.USER_PROFILE -> {
+            val currentUser = FirebaseAuthHelper.getCurrentUser()
             UserProfileScreen(
-                userName = userProfile.name,
+                userName = userProfile.name.ifEmpty { currentUser?.email?.substringBefore("@") ?: "User" },
                 avatarRes = userProfile.avatarRes,
+                isOwnProfile = true,
+                userId = currentUser?.uid,  // Pass user ID to load their listings
                 onBack = { current = AppScreen.HOME },
                 onHome = { current = AppScreen.HOME },
                 onEditAccount = { current = AppScreen.EDIT_PROFILE },
-                onListingDeleted = { /* TODO: hook up deletion later */ }
+                onListingDeleted = { listing ->
+                    // Listing is already deleted from Firestore, just refresh
+                    println("Listing deleted: ${listing.id}")
+                }
+            )
+        }
+
+        // ----------------------------------------------------------
+        // SELLER PROFILE SCREEN (From Chat)
+        // ----------------------------------------------------------
+        AppScreen.SELLER_PROFILE -> {
+            val sellerName = selectedSellerInfo?.get("Name") as? String ?: "Seller"
+            val sellerProfilePic = selectedSellerInfo?.get("ProfilePicURL") as? String
+            val sellerId = selectedSellerId
+            // TODO: Load seller's listings and rating from Firestore
+            UserProfileScreen(
+                userName = sellerName,
+                avatarRes = R.drawable.avatar, // TODO: Load from URL if available
+                isOwnProfile = false,
+                userId = sellerId,  // Pass seller ID to load their listings
+                rating = 5.0, // TODO: Load actual rating from Firestore
+                onBack = { current = AppScreen.CHAT_DETAIL },
+                onHome = { current = AppScreen.HOME },
+                onEditAccount = { /* Not applicable for seller profile */ },
+                onListingDeleted = { /* Not applicable for seller profile */ }
             )
         }
 
@@ -162,8 +309,42 @@ private fun AppNavigator() {
                 onBack = { current = AppScreen.USER_PROFILE },
                 onCancel = { current = AppScreen.USER_PROFILE },
                 onSave = { updated ->
-                    userProfile = updated
-                    current = AppScreen.USER_PROFILE
+                    // Save to Firestore to ensure unique profile per user
+                    val currentUser = FirebaseAuthHelper.getCurrentUser()
+                    if (currentUser != null) {
+                        coroutineScope.launch {
+                            try {
+                                val result = FirebaseAuthHelper.saveUserProfile(
+                                    userId = currentUser.uid,
+                                    name = updated.name,
+                                    email = updated.email,
+                                    phone = updated.phone,
+                                    profilePicURL = null, // Can be updated later
+                                    graduationYear = updated.graduationYear,
+                                    address = updated.address
+                                )
+                                if (result.isSuccess) {
+                                    // Update local state
+                                    userProfile = updated
+                                    current = AppScreen.USER_PROFILE
+                                } else {
+                                    println("Failed to save profile: ${result.exceptionOrNull()?.message}")
+                                    // Still update local state even if Firestore save fails
+                                    userProfile = updated
+                                    current = AppScreen.USER_PROFILE
+                                }
+                            } catch (e: Exception) {
+                                println("Error saving profile: ${e.message}")
+                                // Still update local state
+                                userProfile = updated
+                                current = AppScreen.USER_PROFILE
+                            }
+                        }
+                    } else {
+                        // Not signed in, just update local state
+                        userProfile = updated
+                        current = AppScreen.USER_PROFILE
+                    }
                 }
             )
         }
@@ -178,7 +359,8 @@ private fun AppNavigator() {
                 onViewProfileClick = { current = AppScreen.USER_PROFILE },
                 onCreateListingClick = { current = AppScreen.CREATE_LISTING },
                 onLogoutClick = {
-                    // For now just go back to sign-in
+                    // Sign out from Firebase
+                    FirebaseAuthHelper.signOut()
                     current = AppScreen.SIGN_IN
                 },
                 onHomeClick = {
@@ -200,7 +382,27 @@ private fun AppNavigator() {
                     current = AppScreen.ITEM_DETAIL
                 },
                 onRemoveClick = { listing ->
-                    favorites = favorites.filterNot { it.id == listing.id }
+                    // Remove from Firestore
+                    coroutineScope.launch {
+                        try {
+                            println("Removing favorite for listing ID: ${listing.id}, title: ${listing.title}")
+                            val result = FavoritesRepository.removeFromFavorites(listing.id)
+                            if (result.isFailure) {
+                                val error = result.exceptionOrNull()
+                                println("Failed to remove favorite: ${error?.message}")
+                                println("Error details: ${error}")
+                                error?.printStackTrace()
+                            } else {
+                                println("Successfully removed favorite: ${listing.id}")
+                                // Small delay to ensure Firestore has processed the deletion
+                                delay(200)
+                            }
+                            // The favorites list will update automatically via the Flow
+                        } catch (e: Exception) {
+                            println("Error removing favorite: ${e.message}")
+                            e.printStackTrace()
+                        }
+                    }
                 }
             )
         }
@@ -229,28 +431,64 @@ private fun AppNavigator() {
                     current = AppScreen.HOME
                 }
             } else {
+                // Calculate favorite state from the favorites list
                 val isFavorite = favorites.any { it.id == listing.id }
 
                 ItemDescriptionPage(
                     itemName = listing.title,
-                    sellerName = "BadgerOnSale Seller",
+                    sellerName = listing.sellerName ?: "BadgerOnSale Seller",
                     price = listing.price,
                     details = listOf(
                         "Distance: ${listing.distance}",
-                        "Posted: ${listing.timeAgo}"
-                    ),
+                        "Posted: ${listing.timeAgo}",
+                        if (listing.description.isNotEmpty()) listing.description else ""
+                    ).filter { it.isNotEmpty() },
                     imageRes = listing.imageRes,
+                    imageUrl = listing.imageUrl,
                     isFavorite = isFavorite,
                     onFavoriteClick = {
-                        favorites =
-                            if (isFavorite) {
-                                favorites.filterNot { it.id == listing.id }
-                            } else {
-                                favorites + listing
+                        // Toggle favorite - add if not favorited, remove if favorited
+                        coroutineScope.launch {
+                            try {
+                                if (isFavorite) {
+                                    // Remove from favorites
+                                    val result = FavoritesRepository.removeFromFavorites(listing.id)
+                                    if (result.isFailure) {
+                                        println("Failed to remove favorite: ${result.exceptionOrNull()?.message}")
+                                    } else {
+                                        println("Successfully removed favorite: ${listing.id}")
+                                    }
+                                } else {
+                                    // Add to favorites
+                                    val result = FavoritesRepository.addToFavorites(listing.id)
+                                    if (result.isFailure) {
+                                        println("Failed to add favorite: ${result.exceptionOrNull()?.message}")
+                                    } else {
+                                        println("Successfully added favorite: ${listing.id}")
+                                    }
+                                }
+                                // The favorites list will update automatically via the real-time Flow
+                            } catch (e: Exception) {
+                                println("Error with favorites: ${e.message}")
+                                e.printStackTrace()
                             }
+                        }
                     },
                     onMessageClick = {
-                        current = AppScreen.MESSAGES
+                        // Get seller ID from listing
+                        val sellerId = listing.sellerId
+                        if (sellerId != null && FirebaseAuthHelper.isSignedIn()) {
+                            val currentUserId = FirebaseAuthHelper.getCurrentUser()?.uid
+                            if (currentUserId != sellerId) {
+                                selectedDmId = sellerId
+                                selectedListingId = listing.id
+                                current = AppScreen.CHAT_DETAIL
+                            } else {
+                                current = AppScreen.MESSAGES
+                            }
+                        } else {
+                            current = AppScreen.MESSAGES
+                        }
                     },
                     onBackClick = {
                         current = lastListScreen

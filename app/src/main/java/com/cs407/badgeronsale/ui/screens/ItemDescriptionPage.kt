@@ -19,11 +19,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
 import com.cs407.badgeronsale.R
 
 @Composable
@@ -37,13 +40,15 @@ fun ItemDescriptionPage(
         "Snap Button Front",
         "Perfect for Game Days and Campus Events"
     ),
-    imageRes: Int = R.drawable.favorite_jacket,
+    imageRes: Int? = R.drawable.favorite_jacket,
+    imageUrl: String? = null,
     isFavorite: Boolean = false,
     onFavoriteClick: () -> Unit = {},
     onMessageClick: () -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -65,15 +70,46 @@ fun ItemDescriptionPage(
         Spacer(modifier = Modifier.height(12.dp))
 
         // product image
-        Image(
-            painter = painterResource(id = imageRes),
-            contentDescription = itemName,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(260.dp)
-                .align(Alignment.CenterHorizontally),
-            contentScale = ContentScale.Fit
-        )
+        when {
+            imageUrl != null -> {
+                Image(
+                    painter = rememberAsyncImagePainter(
+                        ImageRequest.Builder(context)
+                            .data(imageUrl)
+                            .build()
+                    ),
+                    contentDescription = itemName,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                        .align(Alignment.CenterHorizontally),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            imageRes != null -> {
+                Image(
+                    painter = painterResource(id = imageRes),
+                    contentDescription = itemName,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                        .align(Alignment.CenterHorizontally),
+                    contentScale = ContentScale.Fit
+                )
+            }
+            else -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(260.dp)
+                        .background(Color(0xFFE0E0E0), shape = RoundedCornerShape(20.dp))
+                        .align(Alignment.CenterHorizontally),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("No Image", color = Color.Gray, fontSize = 16.sp)
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 

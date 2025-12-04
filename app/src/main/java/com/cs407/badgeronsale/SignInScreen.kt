@@ -24,6 +24,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 
 private val BadgerRed = Color(0xFFC5050C)
 private val LightBg   = Color(0xFFF2F2F2)
@@ -40,7 +42,9 @@ fun SignInScreen(
     var passwordError by remember { mutableStateOf<String?>(null) }
     var generalError by remember { mutableStateOf<String?>(null) }
     var passwordVisible by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
+    val coroutineScope = rememberCoroutineScope()
 
     Box(Modifier.fillMaxSize().background(LightBg)) {
         Column(
@@ -166,15 +170,43 @@ fun SignInScreen(
                             else if (!email.endsWith("@wisc.edu", true)) { emailError = "Please use your @wisc.edu email address."; hasError = true }
                             if (password.isBlank()) { passwordError = "Password cannot be empty."; hasError = true }
 
-                            if (!hasError) {
-                                if (fakeLogin(email, password)) onSignInSuccess()
-                                else generalError = "Incorrect email or password."
+                            if (!hasError && !isLoading) {
+                                isLoading = true
+                                generalError = null
+                                coroutineScope.launch {
+                                    val result = FirebaseAuthHelper.signIn(email, password)
+                                    isLoading = false
+                                    result.onSuccess {
+                                        onSignInSuccess()
+                                    }.onFailure { exception ->
+                                        generalError = when {
+                                            exception.message?.contains("invalid-credential") == true ||
+                                            exception.message?.contains("wrong-password") == true ||
+                                            exception.message?.contains("user-not-found") == true ->
+                                                "Incorrect email or password."
+                                            exception.message?.contains("network") == true ->
+                                                "Network error. Please check your connection."
+                                            else -> "Sign in failed: ${exception.message}"
+                                        }
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth().height(52.dp),
                         shape = RoundedCornerShape(26.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = BadgerRed, contentColor = Color.White)
-                    ) { Text("Sign in", style = MaterialTheme.typography.titleMedium) }
+                        colors = ButtonDefaults.buttonColors(containerColor = BadgerRed, contentColor = Color.White),
+                        enabled = !isLoading
+                    ) { 
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("Sign in", style = MaterialTheme.typography.titleMedium)
+                        }
+                    }
 
                     Spacer(Modifier.height(12.dp))
                     OutlinedButton(
@@ -192,9 +224,4 @@ fun SignInScreen(
             Spacer(Modifier.height(24.dp))
         }
     }
-}
-
-// Dummy login for now (replace later with Firebase)
-private fun fakeLogin(email: String, password: String): Boolean {
-    return email.equals("user@wisc.edu", ignoreCase = true) && password == "password123"
 }
