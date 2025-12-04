@@ -71,6 +71,8 @@ private fun AppNavigator() {
 
     // Where we came from when opening an item (Home or Favorites)
     var lastListScreen by remember { mutableStateOf(AppScreen.HOME) }
+    // Where we came from when viewing seller profile (Item Detail or Chat)
+    var lastScreenBeforeSellerProfile by remember { mutableStateOf<AppScreen?>(null) }
 
     // Arguments for screens
     var selectedDmId by remember { mutableStateOf("1") }
@@ -269,6 +271,8 @@ private fun AppNavigator() {
                 listingId = selectedListingId,
                 onBack = { current = AppScreen.MESSAGES },
                 onViewSellerProfile = { sellerId ->
+                    // Store where we came from (chat detail page)
+                    lastScreenBeforeSellerProfile = AppScreen.CHAT_DETAIL
                     selectedSellerId = sellerId
                     // Load seller info
                     coroutineScope.launch {
@@ -302,12 +306,14 @@ private fun AppNavigator() {
         }
 
         // ----------------------------------------------------------
-        // SELLER PROFILE SCREEN (From Chat)
+        // SELLER PROFILE SCREEN (From Chat or Item Detail)
         // ----------------------------------------------------------
         AppScreen.SELLER_PROFILE -> {
             val sellerName = selectedSellerInfo?.get("Name") as? String ?: "Seller"
             val sellerProfilePic = selectedSellerInfo?.get("ProfilePicURL") as? String
             val sellerId = selectedSellerId
+            // Navigate back to where we came from (Chat Detail or Item Detail)
+            val backScreen = lastScreenBeforeSellerProfile ?: AppScreen.HOME
             // TODO: Load seller's listings and rating from Firestore
             UserProfileScreen(
                 userName = sellerName,
@@ -315,7 +321,7 @@ private fun AppNavigator() {
                 isOwnProfile = false,
                 userId = sellerId,  // Pass seller ID to load their listings
                 rating = 5.0, // TODO: Load actual rating from Firestore
-                onBack = { current = AppScreen.CHAT_DETAIL },
+                onBack = { current = backScreen },
                 onHome = { current = AppScreen.HOME },
                 onEditAccount = { /* Not applicable for seller profile */ },
                 onListingDeleted = { /* Not applicable for seller profile */ }
@@ -574,6 +580,27 @@ private fun AppNavigator() {
                                     e.printStackTrace()
                                 }
                             }
+                        }
+                    },
+                    onSellerClick = {
+                        // Navigate to seller profile
+                        val sellerId = listing.sellerId
+                        if (sellerId != null && sellerId != currentUserId) {
+                            // Store where we came from (item detail page)
+                            lastScreenBeforeSellerProfile = AppScreen.ITEM_DETAIL
+                            // Load seller info and navigate to seller profile
+                            coroutineScope.launch {
+                                MessagesRepository.getUserInfo(sellerId).onSuccess {
+                                    selectedSellerInfo = it
+                                    selectedSellerId = sellerId
+                                    current = AppScreen.SELLER_PROFILE
+                                }.onFailure {
+                                    println("Failed to load seller info: ${it.message}")
+                                }
+                            }
+                        } else if (sellerId == currentUserId) {
+                            // If clicking on own name, go to own profile
+                            current = AppScreen.USER_PROFILE
                         }
                     },
                     onBackClick = {

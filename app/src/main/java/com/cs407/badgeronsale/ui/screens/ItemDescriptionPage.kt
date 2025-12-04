@@ -48,6 +48,7 @@ fun ItemDescriptionPage(
     onFavoriteClick: () -> Unit = {},
     onMessageClick: () -> Unit = {},
     onDeleteClick: () -> Unit = {},
+    onSellerClick: () -> Unit = {},
     onBackClick: () -> Unit = {}
 ) {
     val scrollState = rememberScrollState()
@@ -147,7 +148,8 @@ fun ItemDescriptionPage(
                 text = "Listing by: $sellerName",
                 fontWeight = FontWeight.Medium,
                 fontSize = 16.sp,
-                color = Color.Black
+                color = Color(0xFF0066CC), // Blue color to indicate it's clickable
+                modifier = Modifier.clickable { onSellerClick() }
             )
 
             Spacer(modifier = Modifier.height(12.dp))
