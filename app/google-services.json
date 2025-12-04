@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "353762192010",
+    "project_id": "badgeronsalenew",
+    "storage_bucket": "badgeronsalenew.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:353762192010:android:1e41463f9233013d775b73",
+        "android_client_info": {
+          "package_name": "com.cs407.badgeronsale"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDcbg_uqcFTUkhggOpCCuLWWLOcKIYQaBo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
