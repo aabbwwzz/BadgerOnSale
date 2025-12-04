@@ -49,10 +49,12 @@ fun CreateListingScreen(
     var title by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
     var details by remember { mutableStateOf("") }
+    var selectedCategory by remember { mutableStateOf<Category?>(null) }
 
     var titleError by remember { mutableStateOf<String?>(null) }
     var priceError by remember { mutableStateOf<String?>(null) }
     var detailsError by remember { mutableStateOf<String?>(null) }
+    var categoryError by remember { mutableStateOf<String?>(null) }
     var generalError by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -260,6 +262,62 @@ fun CreateListingScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
+                    // Category selection
+                    Text(
+                        text = "Category",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.Black
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Device
+                        FilterChip(
+                            selected = selectedCategory == Category.DEVICES,
+                            onClick = {
+                                selectedCategory = Category.DEVICES
+                                categoryError = null
+                            },
+                            label = { Text("Devices") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                        // Tickets
+                        FilterChip(
+                            selected = selectedCategory == Category.TICKETS,
+                            onClick = {
+                                selectedCategory = Category.TICKETS
+                                categoryError = null
+                            },
+                            label = { Text("Tickets") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                        // Furniture
+                        FilterChip(
+                            selected = selectedCategory == Category.FURNITURE,
+                            onClick = {
+                                selectedCategory = Category.FURNITURE
+                                categoryError = null
+                            },
+                            label = { Text("Furniture") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                    }
+                    if (categoryError != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = categoryError!!,
+                            color = BadgerRed,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     // Item details (multi-line)
                     Text(
                         text = "Item Details",
@@ -343,6 +401,12 @@ fun CreateListingScreen(
                                 hasError = true
                             }
 
+                            // Category required
+                            if (selectedCategory == null) {
+                                categoryError = "Please select a category."
+                                hasError = true
+                            }
+
                             if (!hasError && !isLoading) {
                                 isLoading = true
                                 generalError = null
@@ -384,7 +448,7 @@ fun CreateListingScreen(
                                             timeAgo = "Just now",
                                             imageRes = null,
                                             imageUrl = imageUrl,
-                                            category = Category.OTHER, // TODO: Add category selection
+                                            category = selectedCategory ?: Category.OTHER,
                                             sellerId = currentUser.uid,
                                             sellerName = sellerName,
                                             description = details.trim(),
