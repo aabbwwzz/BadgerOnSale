@@ -135,14 +135,16 @@ fun ItemDescriptionPage(
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Listing by: $sellerName",
-                fontWeight = FontWeight.Medium,
-                fontSize = 16.sp,
+                text = price,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
                 color = Color.Black
             )
 
+            Spacer(modifier = Modifier.height(4.dp))
+
             Text(
-                text = "Price: $price",
+                text = "Listing by: $sellerName",
                 fontWeight = FontWeight.Medium,
                 fontSize = 16.sp,
                 color = Color.Black

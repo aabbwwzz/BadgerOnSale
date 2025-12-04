@@ -67,13 +67,26 @@ fun ChatDetailScreen(
         MessagesRepository.getMessages(otherUserId, listingId).collectLatest { msgs ->
             val previousCount = messages.size
             messages = msgs
+            // Clear loading state once we receive any update (even if empty)
             isLoading = false
             
             // Auto-scroll to bottom when new messages arrive
             if (msgs.isNotEmpty() && (previousCount == 0 || msgs.size > previousCount)) {
                 kotlinx.coroutines.delay(100) // Small delay to ensure list is updated
-                listState.animateScrollToItem(msgs.size - 1)
+                try {
+                    listState.animateScrollToItem(msgs.size - 1)
+                } catch (e: Exception) {
+                    // Ignore scroll errors
+                }
             }
+        }
+    }
+    
+    // Timeout to clear loading state if no messages arrive
+    LaunchedEffect(otherUserId, listingId) {
+        kotlinx.coroutines.delay(2000) // 2 second timeout
+        if (isLoading && messages.isEmpty()) {
+            isLoading = false
         }
     }
 
@@ -145,6 +158,7 @@ fun ChatDetailScreen(
             }
         }
         ) { padding ->
+        // Show loading only for a short time, then show messages even if empty
         if (isLoading && messages.isEmpty()) {
             Box(
                 modifier = Modifier

@@ -187,7 +187,8 @@ private fun ListingCard(item: Listing, onClick: () -> Unit) {
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text(item.price, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            Text(item.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
+            Text(item.price, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
             Text(item.distance, color = Color(0xFF555555), fontSize = 14.sp)
             Text(item.timeAgo, color = Color(0xFF555555), fontSize = 14.sp)
         }

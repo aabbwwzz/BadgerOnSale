@@ -98,16 +98,17 @@ object MessagesRepository {
                 .whereEqualTo("ReceiverID", currentUserId)
             
             // Apply listing filter and ordering if needed
+            // Note: We'll sort in memory to avoid Firestore index requirements
             val finalSentQuery = if (listingID != null) {
-                sentQuery.whereEqualTo("ListingID", listingID).orderBy("Timestamp", Query.Direction.ASCENDING)
+                sentQuery.whereEqualTo("ListingID", listingID)
             } else {
-                sentQuery.orderBy("Timestamp", Query.Direction.ASCENDING)
+                sentQuery
             }
             
             val finalReceivedQuery = if (listingID != null) {
-                receivedQuery.whereEqualTo("ListingID", listingID).orderBy("Timestamp", Query.Direction.ASCENDING)
+                receivedQuery.whereEqualTo("ListingID", listingID)
             } else {
-                receivedQuery.orderBy("Timestamp", Query.Direction.ASCENDING)
+                receivedQuery
             }
             
             // Store snapshots from both listeners
@@ -159,10 +160,20 @@ object MessagesRepository {
                 }
             }
             
+            // Emit empty list immediately to clear loading state
+            try {
+                trySend(emptyList())
+            } catch (e: Exception) {
+                // Channel might be closed, ignore
+            }
+            
             // Set up real-time listeners for both queries
             val sentListener = finalSentQuery.addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("Error in sent messages listener: ${error.message}")
+                    // Still emit empty list on error to clear loading
+                    sentSnapshot = null
+                    combineAndEmit()
                     return@addSnapshotListener
                 }
                 
@@ -173,6 +184,9 @@ object MessagesRepository {
             val receivedListener = finalReceivedQuery.addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     println("Error in received messages listener: ${error.message}")
+                    // Still emit empty list on error to clear loading
+                    receivedSnapshot = null
+                    combineAndEmit()
                     return@addSnapshotListener
                 }
                 
