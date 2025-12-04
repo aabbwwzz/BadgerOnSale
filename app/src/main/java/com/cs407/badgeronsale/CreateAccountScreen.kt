@@ -25,28 +25,48 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
-// Match the SignInScreen palette
+// Color palette reused from the Sign In screen to keep branding consistent
 private val BadgerRed = Color(0xFFC5050C)
 private val LightBackground = Color(0xFFF2F2F2)
 private val InputGrey = Color(0xFFE3E1E1)
 
+/**
+ * CreateAccountScreen
+ *
+ * UI for creating a new BadgerOnSale account.
+ * For Checkpoint 2, this screen:
+ *  - Validates basic fields (name, UW email, password, phone)
+ *  - Shows inline error messages
+ *  - Calls [onAccountCreated] when validation passes (for now, fake success)
+ *
+ * Navigation:
+ *  - [onBackToSignInClick] is called when user taps "Sign in" button
+ *  - [onAccountCreated] is called after a successful validation
+ */
 @Composable
 fun CreateAccountScreen(
     onBackToSignInClick: () -> Unit = {},
     onAccountCreated: () -> Unit = {}
 ) {
+    // Text field state
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
 
+    // Per-field error messages
     var nameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
     var phoneError by remember { mutableStateOf<String?>(null) }
+
+    // General error if we want to show non-field specific messages
     var generalError by remember { mutableStateOf<String?>(null) }
 
+    // Toggles password visibility ("Show"/"Hide" text)
     var passwordVisible by remember { mutableStateOf(false) }
+
+    // Used to move focus between fields when user taps "Next" on keyboard
     val focusManager = LocalFocusManager.current
 
     Box(
@@ -54,6 +74,7 @@ fun CreateAccountScreen(
             .fillMaxSize()
             .background(LightBackground)
     ) {
+        // Main vertical column content with scroll support
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -63,7 +84,7 @@ fun CreateAccountScreen(
         ) {
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Logo (make sure drawable exists)
+            // App logo at top (must exist in drawable resources)
             Image(
                 painter = painterResource(id = R.drawable.cs407logo),
                 contentDescription = "BadgerOnSale logo",
@@ -72,6 +93,7 @@ fun CreateAccountScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // App name
             Text(
                 text = "BadgerOnSale",
                 style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
@@ -79,6 +101,7 @@ fun CreateAccountScreen(
                 textAlign = TextAlign.Center
             )
 
+            // Short tagline under logo
             Text(
                 text = "Buy & sell on campus - safer, faster.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -88,6 +111,7 @@ fun CreateAccountScreen(
 
             Spacer(modifier = Modifier.height(20.dp))
 
+            // Card that contains the entire "Sign Up" form
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(24.dp),
@@ -95,6 +119,8 @@ fun CreateAccountScreen(
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
             ) {
                 Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp)) {
+
+                    // Card title
                     Text(
                         text = "Sign Up",
                         style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
@@ -103,14 +129,16 @@ fun CreateAccountScreen(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Name
+                    // ------------------------
+                    // Name field
+                    // ------------------------
                     Text("Name", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(4.dp))
                     OutlinedTextField(
                         value = name,
                         onValueChange = {
                             name = it
-                            nameError = null
+                            nameError = null          // clear error when user types
                             generalError = null
                         },
                         singleLine = true,
@@ -133,6 +161,7 @@ fun CreateAccountScreen(
                             focusedBorderColor = Color.Transparent
                         )
                     )
+                    // Inline error under name field
                     if (nameError != null) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(nameError!!, color = BadgerRed, style = MaterialTheme.typography.bodySmall)
@@ -140,14 +169,16 @@ fun CreateAccountScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // UW Email
+                    // ------------------------
+                    // UW Email field
+                    // ------------------------
                     Text("UW Email", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(4.dp))
                     OutlinedTextField(
                         value = email,
                         onValueChange = {
                             email = it
-                            emailError = null
+                            emailError = null         // clear error when user types
                             generalError = null
                         },
                         singleLine = true,
@@ -171,6 +202,7 @@ fun CreateAccountScreen(
                             focusedBorderColor = Color.Transparent
                         )
                     )
+                    // Inline error under email field
                     if (emailError != null) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(emailError!!, color = BadgerRed, style = MaterialTheme.typography.bodySmall)
@@ -178,14 +210,16 @@ fun CreateAccountScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Password
+                    // ------------------------
+                    // Password field
+                    // ------------------------
                     Text("Password", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(4.dp))
                     OutlinedTextField(
                         value = password,
                         onValueChange = {
                             password = it
-                            passwordError = null
+                            passwordError = null      // clear error when user types
                             generalError = null
                         },
                         singleLine = true,
@@ -200,8 +234,14 @@ fun CreateAccountScreen(
                         keyboardActions = KeyboardActions(
                             onNext = { focusManager.moveFocus(FocusDirection.Down) }
                         ),
-                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        // Toggle between hidden and visible password text
+                        visualTransformation = if (passwordVisible) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
                         trailingIcon = {
+                            // Simple "Show"/"Hide" text button instead of eye icon
                             Text(
                                 text = if (passwordVisible) "Hide" else "Show",
                                 color = Color.DarkGray,
@@ -218,6 +258,7 @@ fun CreateAccountScreen(
                             focusedBorderColor = Color.Transparent
                         )
                     )
+                    // Inline error under password field
                     if (passwordError != null) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(passwordError!!, color = BadgerRed, style = MaterialTheme.typography.bodySmall)
@@ -225,14 +266,16 @@ fun CreateAccountScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Phone
+                    // ------------------------
+                    // Phone Number field
+                    // ------------------------
                     Text("Phone Number", style = MaterialTheme.typography.bodyMedium)
                     Spacer(modifier = Modifier.height(4.dp))
                     OutlinedTextField(
                         value = phone,
                         onValueChange = {
                             phone = it
-                            phoneError = null
+                            phoneError = null         // clear error when user types
                             generalError = null
                         },
                         singleLine = true,
@@ -255,11 +298,13 @@ fun CreateAccountScreen(
                             focusedBorderColor = Color.Transparent
                         )
                     )
+                    // Inline error under phone field
                     if (phoneError != null) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(phoneError!!, color = BadgerRed, style = MaterialTheme.typography.bodySmall)
                     }
 
+                    // Optional spot for non-field specific error messages
                     if (generalError != null) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(generalError!!, color = BadgerRed, style = MaterialTheme.typography.bodySmall)
@@ -267,11 +312,14 @@ fun CreateAccountScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Create account
+                    // -------------------------------------------------
+                    // "Create account" button – validates all fields
+                    // -------------------------------------------------
                     Button(
                         onClick = {
                             var hasError = false
 
+                            // Basic validation rules
                             if (name.isBlank()) {
                                 nameError = "Name cannot be empty."
                                 hasError = true
@@ -292,8 +340,10 @@ fun CreateAccountScreen(
                                 hasError = true
                             }
 
+                            // If all checks pass, treat this as a successful sign-up
                             if (!hasError) {
-                                // Milestone 1: pretend success (hook up Firebase later)
+                                // Milestone 1 behavior: no real backend yet
+                                // Just notify the caller that account creation "succeeded"
                                 onAccountCreated()
                             }
                         },
@@ -311,7 +361,9 @@ fun CreateAccountScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Back to sign in
+                    // -------------------------------------------------
+                    // "Sign in" button – navigates back to login screen
+                    // -------------------------------------------------
                     OutlinedButton(
                         onClick = onBackToSignInClick,
                         modifier = Modifier
