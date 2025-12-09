@@ -31,6 +31,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.cs407.badgeronsale.repository.ListingRepository
 import com.cs407.badgeronsale.FirebaseAuthHelper
+import com.cs407.badgeronsale.Base64Image
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
@@ -146,18 +147,24 @@ fun UserProfileScreen(
                         // Display profile picture from Firebase Storage or fallback to drawable
                         val displayPicUrl = if (isOwnProfile) profilePicUrl else sellerProfilePicUrl
                         if (displayPicUrl != null) {
-                            Image(
-                                painter = rememberAsyncImagePainter(
-                                    ImageRequest.Builder(context)
-                                        .data(displayPicUrl)
-                                        .error(avatarRes)
-                                        .build()
-                                ),
+                            // Use Base64Image for more reliable data URL loading
+                            Base64Image(
+                                dataUrl = displayPicUrl,
                                 contentDescription = "Profile picture",
-                                contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .size(120.dp)
-                                    .clip(CircleShape)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop,
+                                placeholder = {
+                                    Image(
+                                        painter = painterResource(avatarRes),
+                                        contentDescription = "Profile picture placeholder",
+                                        modifier = Modifier
+                                            .size(120.dp)
+                                            .clip(CircleShape),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
                             )
                         } else {
                             Image(

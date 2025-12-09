@@ -40,6 +40,7 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import java.io.File
+import com.cs407.badgeronsale.Base64Image
 
 // Public so it can be used in callbacks without visibility warnings.
 data class UserProfile(
@@ -217,17 +218,24 @@ fun EditProfileScreen(
                 contentAlignment = Alignment.Center
             ) {
                 if (profilePicUrl != null) {
-                    Image(
-                        painter = rememberAsyncImagePainter(
-                            ImageRequest.Builder(context)
-                                .data(profilePicUrl)
-                                .build()
-                        ),
+                    // Use Base64Image for more reliable data URL loading
+                    Base64Image(
+                        dataUrl = profilePicUrl,
                         contentDescription = "Profile photo",
-                        contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(120.dp)
-                            .clip(CircleShape)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop,
+                        placeholder = {
+                            Image(
+                                painter = painterResource(R.drawable.avatar),
+                                contentDescription = "Profile photo placeholder",
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .clip(CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
                     )
                 } else if (selectedImageUri != null) {
                     Image(
