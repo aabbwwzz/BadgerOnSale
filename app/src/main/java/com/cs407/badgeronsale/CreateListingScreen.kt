@@ -1,6 +1,9 @@
 package com.cs407.badgeronsale
 
+import android.content.ContentValues
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -14,6 +17,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,12 +33,14 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.FileProvider
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import kotlinx.coroutines.launch
 import com.cs407.badgeronsale.repository.ListingRepository
 import com.cs407.badgeronsale.Category
 import com.cs407.badgeronsale.FirebaseAuthHelper
+import java.io.File
 import java.util.Date
 
 // Same color style as other screens
@@ -58,16 +65,67 @@ fun CreateListingScreen(
     var generalError by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var showImageSourceDialog by remember { mutableStateOf(false) }
+    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
 
     val focusManager = LocalFocusManager.current
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
 
-    // Image picker launcher
+    // Image picker launcher (gallery)
     val imagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         selectedImageUri = uri
+    }
+
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success && cameraImageUri != null) {
+            selectedImageUri = cameraImageUri
+        }
+    }
+
+    // Permission launchers
+    val cameraPermissionLauncher = rememberCameraPermissionLauncher(
+        onPermissionGranted = {
+            // Create a temporary file for the camera image
+            val imageFile = File(context.cacheDir, "camera_${System.currentTimeMillis()}.jpg")
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                imageFile
+            )
+            cameraImageUri = uri
+            cameraLauncher.launch(uri)
+        },
+        onPermissionDenied = {
+            generalError = "Camera permission is required to take photos."
+        }
+    )
+
+    val storagePermissionLauncher = rememberStoragePermissionLauncher(
+        onPermissionGranted = {
+            imagePickerLauncher.launch("image/*")
+        },
+        onPermissionDenied = {
+            generalError = "Storage permission is required to select photos."
+        }
+    )
+
+    // Function to handle image source selection
+    fun handleImageSourceClick() {
+        if (PermissionHelper.hasCameraPermission(context) && PermissionHelper.hasStoragePermission(context)) {
+            showImageSourceDialog = true
+        } else if (!PermissionHelper.hasCameraPermission(context)) {
+            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        } else if (!PermissionHelper.hasStoragePermission(context)) {
+            storagePermissionLauncher.launch(PermissionHelper.getStoragePermission())
+        } else {
+            showImageSourceDialog = true
+        }
     }
 
     Box(
@@ -124,7 +182,7 @@ fun CreateListingScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .clickable {
-                            imagePickerLauncher.launch("image/*")
+                            handleImageSourceClick()
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -429,14 +487,28 @@ fun CreateListingScreen(
                                         // Upload image if selected
                                         var imageUrl: String? = null
                                         if (selectedImageUri != null) {
-                                            val uploadResult = FirebaseStorageHelper.uploadListingImage(selectedImageUri!!)
-                                            if (uploadResult.isSuccess) {
-                                                imageUrl = uploadResult.getOrNull()
-                                            } else {
+                                            try {
+                                                println("Starting image upload for URI: $selectedImageUri")
+                                                val uploadResult = FirebaseStorageHelper.uploadListingImage(context, selectedImageUri!!)
+                                                if (uploadResult.isSuccess) {
+                                                    imageUrl = uploadResult.getOrNull()
+                                                    println("Image upload successful! URL length: ${imageUrl?.length ?: 0}")
+                                                } else {
+                                                    val error = uploadResult.exceptionOrNull()
+                                                    println("Image upload failed: ${error?.message}")
+                                                    isLoading = false
+                                                    generalError = "Failed to upload image: ${error?.message ?: "Unknown error"}"
+                                                    return@launch
+                                                }
+                                            } catch (e: Exception) {
+                                                println("Exception during image upload: ${e.message}")
+                                                e.printStackTrace()
                                                 isLoading = false
-                                                generalError = "Failed to upload image: ${uploadResult.exceptionOrNull()?.message}"
+                                                generalError = "Failed to upload image: ${e.message ?: "Unknown error"}"
                                                 return@launch
                                             }
+                                        } else {
+                                            println("No image selected, skipping upload")
                                         }
                                         
                                         // Create listing object
@@ -499,5 +571,95 @@ fun CreateListingScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
         }
+    }
+
+    // Image source selection dialog
+    if (showImageSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showImageSourceDialog = false },
+            title = {
+                Text(
+                    text = "Select Image Source",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Camera option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showImageSourceDialog = false
+                                if (PermissionHelper.hasCameraPermission(context)) {
+                                    val imageFile = File(context.cacheDir, "camera_${System.currentTimeMillis()}.jpg")
+                                    val uri = FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        imageFile
+                                    )
+                                    cameraImageUri = uri
+                                    cameraLauncher.launch(uri)
+                                } else {
+                                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                }
+                            }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Camera",
+                            tint = BadgerRed,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Text(
+                            text = "Take Photo",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    
+                    Divider()
+                    
+                    // Gallery option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showImageSourceDialog = false
+                                if (PermissionHelper.hasStoragePermission(context)) {
+                                    imagePickerLauncher.launch("image/*")
+                                } else {
+                                    storagePermissionLauncher.launch(PermissionHelper.getStoragePermission())
+                                }
+                            }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoLibrary,
+                            contentDescription = "Gallery",
+                            tint = BadgerRed,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Text(
+                            text = "Choose from Gallery",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showImageSourceDialog = false }) {
+                    Text("Cancel", color = BadgerRed)
+                }
+            }
+        )
     }
 }

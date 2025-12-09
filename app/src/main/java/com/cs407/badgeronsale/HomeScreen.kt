@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -25,6 +26,9 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.flow.collectLatest
 import com.cs407.badgeronsale.repository.ListingRepository
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import com.cs407.badgeronsale.Base64Image
 
 enum class Category { TICKETS, FURNITURE, DEVICES, OTHER }
 
@@ -159,31 +163,64 @@ fun HomeScreen(
 
 @Composable
 private fun ListingCard(item: Listing, onClick: () -> Unit) {
+    val context = LocalContext.current
+    
     ElevatedCard(
         onClick = onClick,
         shape = RoundedCornerShape(28.dp),
         modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp)
     ) {
         Column(Modifier.padding(16.dp).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-            // Show image from drawable resource or placeholder if imageRes is null
-            if (item.imageRes != null) {
-                Image(
-                    painter = painterResource(item.imageRes),
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Fit,
-                    modifier = Modifier.height(110.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))
-                )
-            } else {
-                // Placeholder for Firebase Storage images (TODO: implement image loading from URL)
-                Box(
-                    modifier = Modifier
-                        .height(110.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFFE0E0E0)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No Image", color = Color.Gray, fontSize = 12.sp)
+            // Show image from URL, drawable resource, or placeholder
+            when {
+                !item.imageUrl.isNullOrEmpty() -> {
+                    // Use Base64Image helper for more reliable data URL loading
+                    Base64Image(
+                        dataUrl = item.imageUrl,
+                        contentDescription = item.title,
+                        modifier = Modifier
+                            .height(110.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp)),
+                        contentScale = ContentScale.Crop,
+                        placeholder = {
+                            // Show placeholder while loading or on error
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFFE0E0E0)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(R.drawable.avatar),
+                                    contentDescription = "Loading...",
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        }
+                    )
+                }
+                item.imageRes != null -> {
+                    // Load image from drawable resource
+                    Image(
+                        painter = painterResource(item.imageRes),
+                        contentDescription = item.title,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier.height(110.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                    )
+                }
+                else -> {
+                    // Placeholder when no image is available
+                    Box(
+                        modifier = Modifier
+                            .height(110.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0xFFE0E0E0)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No Image", color = Color.Gray, fontSize = 12.sp)
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))

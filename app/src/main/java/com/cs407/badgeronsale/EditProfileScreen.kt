@@ -1,5 +1,8 @@
 package com.cs407.badgeronsale
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -14,7 +17,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.border
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -29,6 +35,11 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.FileProvider
+import coil.compose.rememberAsyncImagePainter
+import coil.request.ImageRequest
+import kotlinx.coroutines.launch
+import java.io.File
 
 // Public so it can be used in callbacks without visibility warnings.
 data class UserProfile(
@@ -37,7 +48,8 @@ data class UserProfile(
     val phone: String,
     val graduationYear: String,
     val address: String,
-    @DrawableRes val avatarRes: Int
+    @DrawableRes val avatarRes: Int = R.drawable.avatar,
+    val profilePicUrl: String? = null  // Firebase Storage URL for profile picture
 )
 
 // Palette to match your app
@@ -69,8 +81,99 @@ fun EditProfileScreen(
     var phone by remember { mutableStateOf(initial.phone) }
     var gradYear by remember { mutableStateOf(initial.graduationYear) }
     var address by remember { mutableStateOf(initial.address) }
+    var selectedImageUri by remember { mutableStateOf<Uri?>(null) }
+    var profilePicUrl by remember { mutableStateOf<String?>(initial.profilePicUrl) }
+    var showImageSourceDialog by remember { mutableStateOf(false) }
+    var cameraImageUri by remember { mutableStateOf<Uri?>(null) }
+    var isLoadingPhoto by remember { mutableStateOf(false) }
+    var photoError by remember { mutableStateOf<String?>(null) }
 
     var emailError by remember { mutableStateOf<String?>(null) }
+    
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // Image picker launcher (gallery)
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedImageUri = uri
+        if (uri != null) {
+            // Upload to Firebase Storage
+            isLoadingPhoto = true
+            photoError = null
+            coroutineScope.launch {
+                val uploadResult = FirebaseStorageHelper.uploadProfilePicture(context, uri)
+                isLoadingPhoto = false
+                if (uploadResult.isSuccess) {
+                    profilePicUrl = uploadResult.getOrNull()
+                } else {
+                    photoError = "Failed to upload photo: ${uploadResult.exceptionOrNull()?.message}"
+                }
+            }
+        }
+    }
+
+    // Camera launcher
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        val uri = cameraImageUri
+        if (success && uri != null) {
+            selectedImageUri = uri
+            // Upload to Firebase Storage
+            isLoadingPhoto = true
+            photoError = null
+            coroutineScope.launch {
+                val uploadResult = FirebaseStorageHelper.uploadProfilePicture(context, uri)
+                isLoadingPhoto = false
+                if (uploadResult.isSuccess) {
+                    profilePicUrl = uploadResult.getOrNull()
+                } else {
+                    photoError = "Failed to upload photo: ${uploadResult.exceptionOrNull()?.message}"
+                }
+            }
+        }
+    }
+
+    // Permission launchers
+    val cameraPermissionLauncher = rememberCameraPermissionLauncher(
+        onPermissionGranted = {
+            val imageFile = File(context.cacheDir, "profile_camera_${System.currentTimeMillis()}.jpg")
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                imageFile
+            )
+            cameraImageUri = uri
+            cameraLauncher.launch(uri)
+        },
+        onPermissionDenied = {
+            photoError = "Camera permission is required to take photos."
+        }
+    )
+
+    val storagePermissionLauncher = rememberStoragePermissionLauncher(
+        onPermissionGranted = {
+            imagePickerLauncher.launch("image/*")
+        },
+        onPermissionDenied = {
+            photoError = "Storage permission is required to select photos."
+        }
+    )
+
+    // Function to handle image source selection
+    fun handleImageSourceClick() {
+        if (PermissionHelper.hasCameraPermission(context) && PermissionHelper.hasStoragePermission(context)) {
+            showImageSourceDialog = true
+        } else if (!PermissionHelper.hasCameraPermission(context)) {
+            cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+        } else if (!PermissionHelper.hasStoragePermission(context)) {
+            storagePermissionLauncher.launch(PermissionHelper.getStoragePermission())
+        } else {
+            showImageSourceDialog = true
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -109,23 +212,72 @@ fun EditProfileScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Avatar
-            Image(
-                painter = painterResource(initial.avatarRes),
-                contentDescription = "Profile photo",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-            )
+            Box(
+                modifier = Modifier.size(120.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (profilePicUrl != null) {
+                    Image(
+                        painter = rememberAsyncImagePainter(
+                            ImageRequest.Builder(context)
+                                .data(profilePicUrl)
+                                .build()
+                        ),
+                        contentDescription = "Profile photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(CircleShape)
+                    )
+                } else if (selectedImageUri != null) {
+                    Image(
+                        painter = rememberAsyncImagePainter(
+                            ImageRequest.Builder(context)
+                                .data(selectedImageUri)
+                                .build()
+                        ),
+                        contentDescription = "Profile photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(CircleShape)
+                    )
+                } else {
+                    Image(
+                        painter = painterResource(initial.avatarRes),
+                        contentDescription = "Profile photo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(CircleShape)
+                    )
+                }
+                if (isLoadingPhoto) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(40.dp),
+                        color = BadgerRed,
+                        strokeWidth = 3.dp
+                    )
+                }
+            }
             Spacer(Modifier.height(8.dp))
             Text(
                 text = "CHANGE PHOTO",
                 color = BadgerRed,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
-                    .clickable { onChangePhoto?.invoke() }
+                    .clickable { handleImageSourceClick() }
                     .padding(4.dp)
             )
+            if (photoError != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = photoError!!,
+                    color = BadgerRed,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 12.sp
+                )
+            }
 
             Spacer(Modifier.height(16.dp))
 
@@ -212,7 +364,8 @@ fun EditProfileScreen(
                                 phone = phone.trim(),
                                 graduationYear = gradYear.trim(),
                                 address = address.trim(),
-                                avatarRes = initial.avatarRes
+                                avatarRes = initial.avatarRes,
+                                profilePicUrl = profilePicUrl
                             )
                         )
                     },
@@ -246,6 +399,96 @@ fun EditProfileScreen(
 
             Spacer(Modifier.height(8.dp))
         }
+    }
+
+    // Image source selection dialog
+    if (showImageSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showImageSourceDialog = false },
+            title = {
+                Text(
+                    text = "Select Image Source",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    // Camera option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showImageSourceDialog = false
+                                if (PermissionHelper.hasCameraPermission(context)) {
+                                    val imageFile = File(context.cacheDir, "profile_camera_${System.currentTimeMillis()}.jpg")
+                                    val uri = FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        imageFile
+                                    )
+                                    cameraImageUri = uri
+                                    cameraLauncher.launch(uri)
+                                } else {
+                                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                                }
+                            }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = "Camera",
+                            tint = BadgerRed,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Text(
+                            text = "Take Photo",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                    
+                    Divider()
+                    
+                    // Gallery option
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showImageSourceDialog = false
+                                if (PermissionHelper.hasStoragePermission(context)) {
+                                    imagePickerLauncher.launch("image/*")
+                                } else {
+                                    storagePermissionLauncher.launch(PermissionHelper.getStoragePermission())
+                                }
+                            }
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PhotoLibrary,
+                            contentDescription = "Gallery",
+                            tint = BadgerRed,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Text(
+                            text = "Choose from Gallery",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showImageSourceDialog = false }) {
+                    Text("Cancel", color = BadgerRed)
+                }
+            }
+        )
     }
 }
 

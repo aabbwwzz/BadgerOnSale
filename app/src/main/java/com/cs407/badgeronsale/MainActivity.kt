@@ -156,13 +156,15 @@ private fun AppNavigator() {
                         if (profileResult.isSuccess) {
                             val profileData = profileResult.getOrNull()!!
                             // Map Firestore data to UserProfile
+                            val profilePicUrl = (profileData["ProfilePicURL"] as? String)?.takeIf { it.isNotEmpty() }
                             userProfile = UserProfile(
                                 name = profileData["Name"] as? String ?: currentUser.email?.substringBefore("@") ?: "User",
                                 email = profileData["Email"] as? String ?: currentUser.email ?: "",
                                 phone = profileData["phone"] as? String ?: "",
                                 graduationYear = profileData["graduationYear"] as? String ?: "",
                                 address = profileData["address"] as? String ?: "",
-                                avatarRes = R.drawable.avatar // Default avatar, can be updated later with ProfilePicURL
+                                avatarRes = R.drawable.avatar,
+                                profilePicUrl = profilePicUrl
                             )
                         } else {
                             // Profile doesn't exist - create a default one to ensure uniqueness
@@ -179,13 +181,15 @@ private fun AppNavigator() {
                                 val reloadResult = FirebaseAuthHelper.getUserProfile(currentUser.uid)
                                 if (reloadResult.isSuccess) {
                                     val profileData = reloadResult.getOrNull()!!
+                                    val profilePicUrl = (profileData["ProfilePicURL"] as? String)?.takeIf { it.isNotEmpty() }
                                     userProfile = UserProfile(
                                         name = profileData["Name"] as? String ?: defaultName,
                                         email = profileData["Email"] as? String ?: email,
                                         phone = profileData["phone"] as? String ?: "",
                                         graduationYear = profileData["graduationYear"] as? String ?: "",
                                         address = profileData["address"] as? String ?: "",
-                                        avatarRes = R.drawable.avatar
+                                        avatarRes = R.drawable.avatar,
+                                        profilePicUrl = profilePicUrl
                                     )
                                 }
                             }
@@ -293,6 +297,7 @@ private fun AppNavigator() {
             UserProfileScreen(
                 userName = userProfile.name.ifEmpty { currentUser?.email?.substringBefore("@") ?: "User" },
                 avatarRes = userProfile.avatarRes,
+                profilePicUrl = userProfile.profilePicUrl,
                 isOwnProfile = true,
                 userId = currentUser?.uid,  // Pass user ID to load their listings
                 onBack = { current = AppScreen.HOME },
@@ -310,14 +315,15 @@ private fun AppNavigator() {
         // ----------------------------------------------------------
         AppScreen.SELLER_PROFILE -> {
             val sellerName = selectedSellerInfo?.get("Name") as? String ?: "Seller"
-            val sellerProfilePic = selectedSellerInfo?.get("ProfilePicURL") as? String
+            val sellerProfilePic = (selectedSellerInfo?.get("ProfilePicURL") as? String)?.takeIf { it.isNotEmpty() }
             val sellerId = selectedSellerId
             // Navigate back to where we came from (Chat Detail or Item Detail)
             val backScreen = lastScreenBeforeSellerProfile ?: AppScreen.HOME
             // TODO: Load seller's listings and rating from Firestore
             UserProfileScreen(
                 userName = sellerName,
-                avatarRes = R.drawable.avatar, // TODO: Load from URL if available
+                avatarRes = R.drawable.avatar,
+                profilePicUrl = sellerProfilePic,
                 isOwnProfile = false,
                 userId = sellerId,  // Pass seller ID to load their listings
                 rating = 5.0, // TODO: Load actual rating from Firestore
@@ -347,7 +353,7 @@ private fun AppNavigator() {
                                     name = updated.name,
                                     email = updated.email,
                                     phone = updated.phone,
-                                    profilePicURL = null, // Can be updated later
+                                    profilePicURL = updated.profilePicUrl,
                                     graduationYear = updated.graduationYear,
                                     address = updated.address
                                 )

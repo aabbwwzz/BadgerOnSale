@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import com.cs407.badgeronsale.Base64Image
 import com.cs407.badgeronsale.Listing
 import com.cs407.badgeronsale.R
 
@@ -157,19 +158,28 @@ fun FavoriteItem(
         ) {
             when {
                 !listing.imageUrl.isNullOrEmpty() -> {
-                    Image(
-                        painter = rememberAsyncImagePainter(
-                            ImageRequest.Builder(context)
-                                .data(listing.imageUrl)
-                                .error(R.drawable.avatar) // Fallback image
-                                .build()
-                        ),
+                    Base64Image(
+                        dataUrl = listing.imageUrl,
                         contentDescription = listing.title,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(140.dp)
                             .padding(bottom = 8.dp),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Crop,
+                        placeholder = {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color(0xFFE0E0E0)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Image(
+                                    painter = painterResource(R.drawable.avatar),
+                                    contentDescription = "Loading...",
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        }
                     )
                 }
                 listing.imageRes != null -> {

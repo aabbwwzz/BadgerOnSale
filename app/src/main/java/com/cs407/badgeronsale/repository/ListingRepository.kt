@@ -29,6 +29,18 @@ object ListingRepository {
         // Support both "UserID" (schema) and "sellerId" (backward compatibility)
         val userId = data["UserID"] as? String ?: data["sellerId"] as? String
         
+        // Get imageUrl - check multiple possible field names
+        val imageUrl = data["imageUrl"] as? String 
+            ?: data["ImageUrl"] as? String
+            ?: null
+        
+        // Debug: Log if imageUrl exists
+        if (imageUrl != null) {
+            println("Listing '${data["title"]}' has imageUrl: length=${imageUrl.length}, startsWith=${imageUrl.take(20)}...")
+        } else {
+            println("Listing '${data["title"]}' has NO imageUrl field")
+        }
+        
         return Listing(
             id = id,
             title = data["title"] as? String ?: "",
@@ -41,7 +53,7 @@ object ListingRepository {
             } catch (e: Exception) {
                 Category.OTHER
             },
-            imageUrl = data["imageUrl"] as? String,
+            imageUrl = imageUrl,
             sellerId = userId, // UserID foreign key (Users-Listings one-to-many relationship)
             sellerName = data["sellerName"] as? String,
             description = data["description"] as? String ?: "",

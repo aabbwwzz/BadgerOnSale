@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.cs407.badgeronsale.R
+import com.cs407.badgeronsale.Base64Image
 
 @Composable
 fun ItemDescriptionPage(
@@ -75,19 +76,27 @@ fun ItemDescriptionPage(
 
         // product image
         when {
-            imageUrl != null -> {
-                Image(
-                    painter = rememberAsyncImagePainter(
-                        ImageRequest.Builder(context)
-                            .data(imageUrl)
-                            .build()
-                    ),
+            !imageUrl.isNullOrEmpty() -> {
+                // Use Base64Image helper for more reliable data URL loading
+                Base64Image(
+                    dataUrl = imageUrl,
                     contentDescription = itemName,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(260.dp)
                         .align(Alignment.CenterHorizontally),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    placeholder = {
+                        // Show placeholder while loading or on error
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFFE0E0E0), shape = RoundedCornerShape(20.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Loading Image...", color = Color.Gray, fontSize = 16.sp)
+                        }
+                    }
                 )
             }
             imageRes != null -> {

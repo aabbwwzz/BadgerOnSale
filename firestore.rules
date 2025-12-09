@@ -52,6 +52,20 @@ service cloud.firestore {
                       resource.data.UserID == request.auth.uid;
     }
     
+    // Images collection (stores base64 image data)
+    match /images/{imageId} {
+      // Anyone authenticated can read images
+      allow read: if isAuthenticated();
+      
+      // Users can only upload images for themselves
+      allow create: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid;
+      
+      // Users can only delete their own images
+      allow delete: if isAuthenticated() && 
+                      resource.data.userId == request.auth.uid;
+    }
+    
     // Messages collection
     match /messages/{messageId} {
       // Users can only read messages where they are sender or receiver

@@ -49,6 +49,7 @@ data class UserListing(
 fun UserProfileScreen(
     userName: String = "Jouhara Ali",
     @DrawableRes avatarRes: Int = R.drawable.avatar,
+    profilePicUrl: String? = null,  // Firebase Storage URL for profile picture
     isOwnProfile: Boolean = true,  // True if viewing own profile, false if viewing seller profile
     rating: Double = 5.0,  // Seller rating (for seller profile view)
     userId: String? = null,  // User ID to load listings for (if null, uses current user)
@@ -66,6 +67,20 @@ fun UserProfileScreen(
     
     // Determine which user's listings to load
     val targetUserId = userId ?: FirebaseAuthHelper.getCurrentUser()?.uid
+    
+    // Load profile picture URL if viewing seller profile
+    var sellerProfilePicUrl by remember { mutableStateOf<String?>(profilePicUrl) }
+    LaunchedEffect(userId) {
+        if (userId != null && !isOwnProfile) {
+            coroutineScope.launch {
+                val profileResult = FirebaseAuthHelper.getUserProfile(userId)
+                if (profileResult.isSuccess) {
+                    val profileData = profileResult.getOrNull()!!
+                    sellerProfilePicUrl = (profileData["ProfilePicURL"] as? String)?.takeIf { it.isNotEmpty() }
+                }
+            }
+        }
+    }
     
     // Load listings in real-time
     LaunchedEffect(targetUserId) {
@@ -128,14 +143,32 @@ fun UserProfileScreen(
                         modifier = Modifier.padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Image(
-                            painter = painterResource(avatarRes),
-                            contentDescription = "Profile picture",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(120.dp)
-                                .clip(CircleShape)
-                        )
+                        // Display profile picture from Firebase Storage or fallback to drawable
+                        val displayPicUrl = if (isOwnProfile) profilePicUrl else sellerProfilePicUrl
+                        if (displayPicUrl != null) {
+                            Image(
+                                painter = rememberAsyncImagePainter(
+                                    ImageRequest.Builder(context)
+                                        .data(displayPicUrl)
+                                        .error(avatarRes)
+                                        .build()
+                                ),
+                                contentDescription = "Profile picture",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .clip(CircleShape)
+                            )
+                        } else {
+                            Image(
+                                painter = painterResource(avatarRes),
+                                contentDescription = "Profile picture",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(120.dp)
+                                    .clip(CircleShape)
+                            )
+                        }
 
                         Spacer(Modifier.height(12.dp))
 
