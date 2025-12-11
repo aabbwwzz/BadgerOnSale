@@ -52,7 +52,6 @@ fun UserProfileScreen(
     @DrawableRes avatarRes: Int = R.drawable.avatar,
     profilePicUrl: String? = null,  // Firebase Storage URL for profile picture
     isOwnProfile: Boolean = true,  // True if viewing own profile, false if viewing seller profile
-    rating: Double = 5.0,  // Seller rating (for seller profile view)
     userId: String? = null,  // User ID to load listings for (if null, uses current user)
     onBack: () -> Unit = {},
     onHome: () -> Unit = {},
@@ -198,56 +197,21 @@ fun UserProfileScreen(
                             fontSize = 14.sp
                         )
 
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(16.dp))
 
-                        // Listings count (matching wireframe - only listings, no ratings for own profile)
-                        if (isOwnProfile) {
-                            // For own profile: just show listings count (matching wireframe)
-                            Text(
-                                text = listings.size.toString(),
-                                fontWeight = FontWeight.Black,
-                                fontSize = 28.sp
-                            )
-                            Text(
-                                text = "listings",
-                                color = Color(0xFF666666),
-                                fontSize = 14.sp
-                            )
-                        } else {
-                            // For seller profile: show ratings and listings side by side
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
-                            ) {
-                                // Ratings (left side)
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = rating.toString(),
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 28.sp
-                                    )
-                                    Text(
-                                        text = "RATINGS",
-                                        color = Color(0xFF666666),
-                                        fontSize = 12.sp
-                                    )
-                                }
-                                
-                                // Listings count (right side)
-                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Text(
-                                        text = listings.size.toString(),
-                                        fontWeight = FontWeight.Black,
-                                        fontSize = 28.sp
-                                    )
-                                    Text(
-                                        text = "listings",
-                                        color = Color(0xFF666666),
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
+                        // Listings count
+                        Text(
+                            text = listings.size.toString(),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 28.sp
+                        )
+                        Text(
+                            text = "listings",
+                            color = Color(0xFF666666),
+                            fontSize = 14.sp
+                        )
+                        
+                        Spacer(Modifier.height(8.dp))
                     }
                 }
             }

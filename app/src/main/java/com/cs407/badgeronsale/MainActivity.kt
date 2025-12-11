@@ -326,7 +326,6 @@ private fun AppNavigator() {
                 profilePicUrl = sellerProfilePic,
                 isOwnProfile = false,
                 userId = sellerId,  // Pass seller ID to load their listings
-                rating = 5.0, // TODO: Load actual rating from Firestore
                 onBack = { current = backScreen },
                 onHome = { current = AppScreen.HOME },
                 onEditAccount = { /* Not applicable for seller profile */ },
