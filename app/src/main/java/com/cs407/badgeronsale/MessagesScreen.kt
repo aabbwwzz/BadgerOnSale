@@ -120,7 +120,7 @@ fun MessagesScreen(
     Scaffold(
         topBar = {
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Messages", style = MaterialTheme.typography.headlineSmall)
@@ -185,14 +185,21 @@ private fun DMRow(dm: DMPreview, preview: String, onClick: () -> Unit) {
     ) {
         Row(Modifier.padding(14.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             // Show profile picture from URL if available, otherwise use drawable
-            if (dm.profilePicURL != null && dm.profilePicURL.isNotEmpty()) {
-                // TODO: Load image from URL using Coil or similar library
-                // For now, fallback to drawable
-                Image(
-                    painter = painterResource(dm.avatarRes),
+            if (!dm.profilePicURL.isNullOrEmpty()) {
+                // Load profile picture from data URL
+                Base64Image(
+                    dataUrl = dm.profilePicURL,
                     contentDescription = "${dm.name} avatar",
+                    modifier = Modifier.size(54.dp).clip(CircleShape),
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(54.dp).clip(CircleShape)
+                    placeholder = {
+                        Image(
+                            painter = painterResource(dm.avatarRes),
+                            contentDescription = "${dm.name} avatar",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(54.dp).clip(CircleShape)
+                        )
+                    }
                 )
             } else {
                 Image(

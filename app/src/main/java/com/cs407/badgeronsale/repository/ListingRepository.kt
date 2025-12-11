@@ -273,6 +273,56 @@ object ListingRepository {
         }
     }
     
+    // Update seller name on all listings by a user
+    suspend fun updateSellerNameForUser(userId: String, newSellerName: String): Result<Int> {
+        return try {
+            // Get all listings by this user
+            val snapshot = db.collection(COLLECTION_LISTINGS)
+                .whereEqualTo("UserID", userId)
+                .get()
+                .await()
+            
+            var updatedCount = 0
+            
+            // Update each listing with the new seller name
+            for (doc in snapshot.documents) {
+                try {
+                    doc.reference.update("sellerName", newSellerName).await()
+                    updatedCount++
+                } catch (e: Exception) {
+                    println("Failed to update listing ${doc.id}: ${e.message}")
+                }
+            }
+            
+            // Also try updating listings with old sellerId field
+            try {
+                val oldSnapshot = db.collection(COLLECTION_LISTINGS)
+                    .whereEqualTo("sellerId", userId)
+                    .get()
+                    .await()
+                
+                for (doc in oldSnapshot.documents) {
+                    // Skip if already updated (has UserID)
+                    if (doc.data?.containsKey("UserID") == true) continue
+                    try {
+                        doc.reference.update("sellerName", newSellerName).await()
+                        updatedCount++
+                    } catch (e: Exception) {
+                        println("Failed to update listing ${doc.id}: ${e.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                // Ignore fallback errors
+            }
+            
+            println("Updated seller name on $updatedCount listings for user $userId")
+            Result.success(updatedCount)
+        } catch (e: Exception) {
+            println("Error updating seller name: ${e.message}")
+            Result.failure(e)
+        }
+    }
+
     // Delete a listing
     suspend fun deleteListing(listingId: String, userId: String): Result<Unit> {
         return try {

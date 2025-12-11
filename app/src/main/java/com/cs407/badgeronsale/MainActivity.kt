@@ -358,6 +358,11 @@ private fun AppNavigator() {
                                     address = updated.address
                                 )
                                 if (result.isSuccess) {
+                                    // Also update seller name on all user's listings
+                                    ListingRepository.updateSellerNameForUser(
+                                        userId = currentUser.uid,
+                                        newSellerName = updated.name
+                                    )
                                     // Update local state
                                     userProfile = updated
                                     current = AppScreen.USER_PROFILE
@@ -516,8 +521,6 @@ private fun AppNavigator() {
                     sellerName = listing.sellerName ?: "BadgerOnSale Seller",
                     price = listing.price,
                     details = listOf(
-                        "Distance: ${listing.distance}",
-                        "Posted: ${listing.timeAgo}",
                         if (listing.description.isNotEmpty()) listing.description else ""
                     ).filter { it.isNotEmpty() },
                     imageRes = listing.imageRes,

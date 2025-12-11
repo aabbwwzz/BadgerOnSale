@@ -69,15 +69,21 @@ fun UserProfileScreen(
     // Determine which user's listings to load
     val targetUserId = userId ?: FirebaseAuthHelper.getCurrentUser()?.uid
     
-    // Load profile picture URL if viewing seller profile
-    var sellerProfilePicUrl by remember { mutableStateOf<String?>(profilePicUrl) }
-    LaunchedEffect(userId) {
+    // Profile picture URL - use passed parameter for own profile, fetch for seller profile
+    var fetchedSellerProfilePicUrl by remember { mutableStateOf<String?>(null) }
+    
+    // For own profile, always use the passed profilePicUrl (which updates when profile is edited)
+    // For seller profile, fetch from Firestore
+    val displayProfilePicUrl = if (isOwnProfile) profilePicUrl else (fetchedSellerProfilePicUrl ?: profilePicUrl)
+    
+    // Fetch seller's profile picture if viewing seller profile
+    LaunchedEffect(userId, isOwnProfile) {
         if (userId != null && !isOwnProfile) {
             coroutineScope.launch {
                 val profileResult = FirebaseAuthHelper.getUserProfile(userId)
                 if (profileResult.isSuccess) {
                     val profileData = profileResult.getOrNull()!!
-                    sellerProfilePicUrl = (profileData["ProfilePicURL"] as? String)?.takeIf { it.isNotEmpty() }
+                    fetchedSellerProfilePicUrl = (profileData["ProfilePicURL"] as? String)?.takeIf { it.isNotEmpty() }
                 }
             }
         }
@@ -115,6 +121,7 @@ fun UserProfileScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
+                    .statusBarsPadding()
                     .padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -141,15 +148,16 @@ fun UserProfileScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(20.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         // Display profile picture from Firebase Storage or fallback to drawable
-                        val displayPicUrl = if (isOwnProfile) profilePicUrl else sellerProfilePicUrl
-                        if (displayPicUrl != null) {
+                        if (displayProfilePicUrl != null) {
                             // Use Base64Image for more reliable data URL loading
                             Base64Image(
-                                dataUrl = displayPicUrl,
+                                dataUrl = displayProfilePicUrl,
                                 contentDescription = "Profile picture",
                                 modifier = Modifier
                                     .size(120.dp)
@@ -272,6 +280,7 @@ fun UserProfileScreen(
                 ListingRow(
                     listing = item,
                     showPrice = !isOwnProfile,  // Show price only for seller profile
+                    showDelete = isOwnProfile,  // Only show delete for own listings
                     imageUrl = item.imageUrl ?: listingData?.imageUrl,
                     onDelete = {
                         if (isOwnProfile) {
@@ -305,6 +314,7 @@ private fun ListingRow(
     listing: UserListing,
     onDelete: () -> Unit,
     showPrice: Boolean = false,  // Only show price for seller profile view
+    showDelete: Boolean = true,  // Only show delete icon for own listings
     imageUrl: String? = null  // Firebase Storage image URL
 ) {
     val context = LocalContext.current
@@ -325,19 +335,26 @@ private fun ListingRow(
         ) {
             // Image on the left - support both drawable and Firebase Storage images
             when {
-                imageUrl != null -> {
-                    Image(
-                        painter = rememberAsyncImagePainter(
-                            ImageRequest.Builder(context)
-                                .data(imageUrl)
-                                .error(R.drawable.avatar)
-                                .build()
-                        ),
+                !imageUrl.isNullOrEmpty() -> {
+                    // Use Base64Image for data URLs
+                    Base64Image(
+                        dataUrl = imageUrl,
                         contentDescription = listing.title,
-                        contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .size(44.dp)
-                            .clip(RoundedCornerShape(12.dp))
+                            .clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop,
+                        placeholder = {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color(0xFFE0E0E0)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("...", fontSize = 10.sp, color = Color.Gray)
+                            }
+                        }
                     )
                 }
                 listing.imageRes != null -> {
@@ -388,15 +405,17 @@ private fun ListingRow(
                 )
             }
 
-            // Trash icon on the right (matching wireframe)
-            Icon(
-                imageVector = Icons.Filled.Delete,
-                contentDescription = "Delete",
-                tint = Color.Black,
-                modifier = Modifier
-                    .size(26.dp)
-                    .clickable { onDelete() }
-            )
+            // Trash icon on the right (only for own listings)
+            if (showDelete) {
+                Icon(
+                    imageVector = Icons.Filled.Delete,
+                    contentDescription = "Delete",
+                    tint = Color.Black,
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clickable { onDelete() }
+                )
+            }
         }
     }
 }

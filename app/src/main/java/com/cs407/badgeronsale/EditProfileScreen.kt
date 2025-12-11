@@ -8,6 +8,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 //import androidx.compose.ui.text.input.KeyboardOptions
@@ -178,7 +179,7 @@ fun EditProfileScreen(
 
     Scaffold(
         topBar = {
-            Surface(shadowElevation = 2.dp, color = CardBg) {
+            Surface(shadowElevation = 2.dp, color = CardBg, modifier = Modifier.statusBarsPadding()) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -208,6 +209,7 @@ fun EditProfileScreen(
                 .fillMaxSize()
                 .background(LightBg)
                 .padding(padding)
+                .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -405,7 +407,7 @@ fun EditProfileScreen(
                 }
             }
 
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(32.dp))
         }
     }
 

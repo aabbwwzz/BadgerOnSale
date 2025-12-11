@@ -2,7 +2,9 @@ package com.cs407.badgeronsale
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -66,7 +68,7 @@ fun HomeScreen(
     onListingClick: (Listing) -> Unit = {}
 ) {
     var query by remember { mutableStateOf("") }
-    val chipLabels = listOf("All", "Tickets", "Furniture", "Devices")
+    val chipLabels = listOf("All", "Tickets", "Furniture", "Devices", "Other")
     var selected by remember { mutableStateOf("All") }
     var listings by remember { mutableStateOf<List<Listing>>(mockListings) }
     var isLoading by remember { mutableStateOf(true) }
@@ -91,6 +93,7 @@ fun HomeScreen(
                 "Tickets"   -> listings.filter { it.category == Category.TICKETS }
                 "Furniture" -> listings.filter { it.category == Category.FURNITURE }
                 "Devices"   -> listings.filter { it.category == Category.DEVICES }
+                "Other"     -> listings.filter { it.category == Category.OTHER }
                 else        -> listings
             }
             if (query.isBlank()) base else base.filter { it.title.contains(query, true) }
@@ -98,7 +101,11 @@ fun HomeScreen(
     }
 
     Column(
-        Modifier.fillMaxSize().background(Color(0xFFF6F6F6))
+        Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF6F6F6))
+            .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
         // Top Navigation Bar: Menu (left), Search (center), Messages (right)
         Row(
@@ -119,7 +126,7 @@ fun HomeScreen(
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Search", tint = Color.Gray) },
                 singleLine = true,
                 shape = RoundedCornerShape(28.dp),
-                modifier = Modifier.weight(1f).height(48.dp),
+                modifier = Modifier.weight(1f).height(56.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     unfocusedContainerColor = Color.White,
                     focusedContainerColor = Color.White
@@ -135,7 +142,11 @@ fun HomeScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        Row(Modifier.padding(horizontal = 12.dp)) {
+        Row(
+            Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp)
+        ) {
             chipLabels.forEach { label ->
                 FilterChip(
                     selected = selected == label,
@@ -225,9 +236,12 @@ private fun ListingCard(item: Listing, onClick: () -> Unit) {
             }
             Spacer(Modifier.height(8.dp))
             Text(item.title, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Black)
-            Text(item.price, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color.Black)
-            Text(item.distance, color = Color(0xFF555555), fontSize = 14.sp)
-            Text(item.timeAgo, color = Color(0xFF555555), fontSize = 14.sp)
+            Text(
+                text = if (item.price.startsWith("$")) item.price else "$${item.price}",
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = Color.Black
+            )
         }
     }
 }

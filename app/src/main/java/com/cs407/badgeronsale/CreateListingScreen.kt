@@ -10,6 +10,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -132,6 +133,8 @@ fun CreateListingScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(LightBackground)
+            .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
         Column(
             modifier = Modifier
@@ -331,7 +334,7 @@ fun CreateListingScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Device
+                        // Devices
                         FilterChip(
                             selected = selectedCategory == Category.DEVICES,
                             onClick = {
@@ -353,6 +356,12 @@ fun CreateListingScreen(
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(20.dp)
                         )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         // Furniture
                         FilterChip(
                             selected = selectedCategory == Category.FURNITURE,
@@ -361,6 +370,17 @@ fun CreateListingScreen(
                                 categoryError = null
                             },
                             label = { Text("Furniture") },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                        // Other
+                        FilterChip(
+                            selected = selectedCategory == Category.OTHER,
+                            onClick = {
+                                selectedCategory = Category.OTHER
+                                categoryError = null
+                            },
+                            label = { Text("Other") },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(20.dp)
                         )
